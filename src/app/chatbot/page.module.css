@@ -1116,6 +1116,52 @@
   animation: pulse 2s ease-in-out infinite;
 }
 
+.ocrProgress {
+  margin-top: var(--space-3);
+  text-align: center;
+}
+
+.progressBar {
+  width: 100%;
+  height: 6px;
+  background-color: var(--gray-200);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+  margin-top: var(--space-2);
+}
+
+.progressFill {
+  height: 100%;
+  background-color: var(--color-primary);
+  transition: width 0.3s ease;
+}
+
+.uploadedPreview {
+  max-width: 200px;
+  max-height: 150px;
+  margin-top: var(--space-3);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  object-fit: contain;
+}
+
+.voiceError {
+  text-align: center;
+  font-size: var(--text-sm);
+  color: var(--color-danger);
+  margin-top: var(--space-2);
+  padding: var(--space-2);
+  background-color: oklch(60% 0.18 25 / 0.08);
+  border-radius: var(--radius-sm);
+}
+
+.voiceWarning {
+  text-align: center;
+  font-size: var(--text-sm);
+  color: var(--gray-500);
+  margin-top: var(--space-2);
+}
+
 /* ── medication panel ── */
 
 .medicationPanel {

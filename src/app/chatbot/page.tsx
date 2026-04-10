@@ -9,8 +9,9 @@ import { useApp } from '@/context/AppContext';
 import Card from '@/components/ui/Card/Card';
 import Button from '@/components/ui/Button/Button';
 import Alert from '@/components/ui/Alert/Alert';
-import { checkDrugInteractions, searchDrugs, findDrug } from '@/lib/drugDatabase';
+import { checkDrugInteractions, searchDrugs, findDrug, drugDatabase } from '@/lib/drugDatabase';
 import { Medication, DrugInteraction } from '@/types';
+import Tesseract from 'tesseract.js';
 import styles from './page.module.css';
 
 declare global {
@@ -100,6 +101,8 @@ export default function Chatbot() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<any>(null);
   const [drugSuggestions, setDrugSuggestions] = useState<{ name: string; category: string; aliases: string }[]>([]);
+  const [ocrProgress, setOcrProgress] = useState(0);
+  const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null);
 
   const addMsg = (msg: Omit<LocalMessage, 'id' | 'timestamp'>) => {
     setMessages(prev => [...prev, { ...msg, id: uuidv4(), timestamp: new Date().toISOString() }]);
@@ -149,6 +152,57 @@ export default function Chatbot() {
     }
   };
 
+  const extractDrugsFromText = (text: string): string[] => {
+    const foundDrugs: Set<string> = new Set();
+    const normalizedText = text.toLowerCase();
+    
+    drugDatabase.forEach(drug => {
+      if (normalizedText.includes(drug.name.toLowerCase())) {
+        foundDrugs.add(drug.name);
+      }
+      drug.aliases.forEach(alias => {
+        if (normalizedText.includes(alias.toLowerCase())) {
+          foundDrugs.add(drug.name);
+        }
+      });
+    });
+    
+    return Array.from(foundDrugs);
+  };
+
+  const renderPdfPageToCanvas = async (file: File, pageNum: number, scale: number = 2): Promise<string> => {
+    const pdfjsLib = await import('pdfjs-dist');
+    pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    const page = await pdf.getPage(pageNum);
+    const viewport = page.getViewport({ scale });
+    
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d')!;
+    canvas.height = viewport.height;
+    canvas.width = viewport.width;
+    
+    await page.render({
+      canvasContext: context,
+      viewport: viewport,
+      canvas: canvas,
+    } as any).promise;
+    
+    return canvas.toDataURL('image/jpeg', 0.95);
+  };
+
+  const extractTextFromImage = async (imageDataUrl: string): Promise<string> => {
+    const result = await Tesseract.recognize(imageDataUrl, 'eng', {
+      logger: (m) => {
+        if (m.status === 'recognizing text') {
+          setOcrProgress(prev => Math.min(prev + Math.round(m.progress * 30), 90));
+        }
+      },
+    });
+    return result.data.text;
+  };
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -160,20 +214,65 @@ export default function Chatbot() {
       return;
     }
 
-    const isPdf = file.type === 'application/pdf';
     setIsProcessingOCR(true);
+    setOcrProgress(0);
     addMsg({ role: 'user', text: `Uploading prescription: ${file.name}` });
 
+    const isPdf = file.type === 'application/pdf';
+    let imageUrl: string | null = null;
+
     try {
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      const mockDrugs = ['Metformin', 'Lisinopril', 'Atorvastatin'];
-      setExtractedDrugs(mockDrugs);
-      setSelectedDrugs(mockDrugs);
-      addMsg({ role: 'bot', text: `I've extracted the following medications from your prescription. Please confirm which ones to check:`, drugs: mockDrugs });
+      let extractedText = '';
+
+      if (isPdf) {
+        const pdfjsLib = await import('pdfjs-dist');
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        const numPages = pdf.numPages;
+        
+        imageUrl = URL.createObjectURL(file);
+        setUploadedImageUrl(imageUrl);
+        
+        addMsg({ role: 'bot', text: `Processing ${numPages} page${numPages > 1 ? 's' : ''}...` });
+
+        for (let i = 1; i <= numPages; i++) {
+          setOcrProgress(Math.round((i / numPages) * 30));
+          const pageImage = await renderPdfPageToCanvas(file, i);
+          const pageText = await extractTextFromImage(pageImage);
+          extractedText += pageText + '\n';
+        }
+      } else {
+        imageUrl = URL.createObjectURL(file);
+        setUploadedImageUrl(imageUrl);
+        
+        const result = await Tesseract.recognize(imageUrl, 'eng', {
+          logger: (m) => {
+            if (m.status === 'recognizing text') {
+              setOcrProgress(Math.round(m.progress * 90));
+            }
+          },
+        });
+        extractedText = result.data.text;
+      }
+
+      const foundDrugs = extractDrugsFromText(extractedText);
+
+      if (foundDrugs.length > 0) {
+        setExtractedDrugs(foundDrugs);
+        setSelectedDrugs(foundDrugs);
+        addMsg({ role: 'bot', text: `I've extracted the following medications from your prescription. Please confirm which ones to check:`, drugs: foundDrugs });
+      } else {
+        addMsg({ role: 'bot', text: `I scanned your prescription but couldn't find any recognized medications. The image may be unclear, or the text may not match our database. You can also type medication names manually above.` });
+      }
     } catch (err) {
-      addMsg({ role: 'bot', text: 'Sorry, I had trouble processing that file. Please try a clearer image.' });
+      console.error('OCR Error:', err);
+      addMsg({ role: 'bot', text: 'Sorry, I had trouble processing that file. Please try a clearer image or type the medication names manually.' });
     } finally {
       setIsProcessingOCR(false);
+      setOcrProgress(0);
+      if (imageUrl) URL.revokeObjectURL(imageUrl);
+      setUploadedImageUrl(null);
     }
   };
 
@@ -403,7 +502,15 @@ export default function Chatbot() {
             <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp,application/pdf" onChange={handleFileUpload} className={styles.hiddenInput} />
             <Button type="submit" disabled={!inputValue.trim() || isProcessingOCR}><Send size={20} /></Button>
           </div>
-          {isProcessingOCR && <p className={styles.processingText}>Processing prescription...</p>}
+          {isProcessingOCR && (
+            <div className={styles.ocrProgress}>
+              <p className={styles.processingText}>Scanning prescription... {ocrProgress}%</p>
+              <div className={styles.progressBar}>
+                <div className={styles.progressFill} style={{ width: `${ocrProgress}%` }} />
+              </div>
+              {uploadedImageUrl && <img src={uploadedImageUrl} alt="Uploaded prescription" className={styles.uploadedPreview} />}
+            </div>
+          )}
         </form>
       </div>
 
