@@ -95,7 +95,8 @@ export default function Chatbot() {
   const [isProcessingOCR, setIsProcessingOCR] = useState(false);
   const [extractedDrugs, setExtractedDrugs] = useState<string[]>([]);
   const [selectedDrugs, setSelectedDrugs] = useState<string[]>([]);
-  const [showAddConfirmation, setShowAddConfirmation] = useState<{ name: string; dosage: string } | null>(null);
+  const [showAddConfirmation, setShowAddConfirmation] = useState<{ name: string; dosage: string }[] | null>(null);
+  const [selectedToAdd, setSelectedToAdd] = useState<number[]>([]);
   const [showMedicationPanel, setShowMedicationPanel] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -365,10 +366,12 @@ export default function Chatbot() {
         checkSummary += `.\n\n`;
         responseText = `Good news! ${checkSummary}I didn't find any major interactions or allergy concerns.\n\n`;
         responseText += `Would you like me to add these medications to your profile so we can track them?`;
-        setShowAddConfirmation({
-          name: findDrug(knownDrugs[0])?.name || knownDrugs[0],
+        const medsToConfirm = knownDrugs.map(d => ({
+          name: findDrug(d)?.name || d,
           dosage: 'As prescribed',
-        });
+        }));
+        setShowAddConfirmation(medsToConfirm);
+        setSelectedToAdd(medsToConfirm.map((_, i) => i));
       } else {
         responseText = `I checked the medications you mentioned but couldn't find them in my database.\n\n`;
         responseText += `For safety, please ask your doctor or pharmacist to review your medications.`;
@@ -397,18 +400,29 @@ export default function Chatbot() {
   };
 
   const addToProfile = () => {
-    if (!showAddConfirmation) return;
-    const med: Medication = {
-      id: uuidv4(),
-      name: showAddConfirmation.name,
-      dosage: showAddConfirmation.dosage,
-      frequency: 'daily',
-      times: ['morning'],
-      startDate: new Date().toISOString(),
-    };
-    addMedication(med);
-    generateCalendarEvents(med, new Date(), new Date(Date.now() + 30 * 24 * 60 * 60 * 1000));
-    addMsg({ role: 'bot', text: `Done! ${showAddConfirmation.name} has been added to your medications and calendar.` });
+    if (!showAddConfirmation || showAddConfirmation.length === 0) return;
+    
+    const endDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    const addedNames: string[] = [];
+    
+    showAddConfirmation.forEach(med => {
+      const newMed: Medication = {
+        id: uuidv4(),
+        name: med.name,
+        dosage: med.dosage,
+        frequency: 'daily',
+        times: ['morning'],
+        startDate: new Date().toISOString(),
+      };
+      addMedication(newMed);
+      generateCalendarEvents(newMed, new Date(), endDate);
+      addedNames.push(med.name);
+    });
+    
+    const message = addedNames.length === 1 
+      ? `Done! ${addedNames[0]} has been added to your medications and calendar.`
+      : `Done! ${addedNames.join(', ')} have been added to your medications and calendar.`;
+    addMsg({ role: 'bot', text: message });
     setShowAddConfirmation(null);
   };
 
@@ -468,14 +482,53 @@ export default function Chatbot() {
           </Card>
         )}
 
-        {showAddConfirmation && (
-          <Alert variant="success" title="Add to your medications?">
-            <p>Would you like to add <strong>{showAddConfirmation.name}</strong> to your medication profile?</p>
-            <div className={styles.confirmActions}>
-              <Button variant="secondary" onClick={() => setShowAddConfirmation(null)}>No, thanks</Button>
-              <Button onClick={addToProfile}><Plus size={18} />Yes, add it</Button>
+        {showAddConfirmation && showAddConfirmation.length > 0 && (
+          <Card className={styles.addConfirmationPanel}>
+            <div className={styles.addConfirmationHeader}>
+              <h3>Add to your medications?</h3>
+              <button onClick={() => { setShowAddConfirmation(null); setSelectedToAdd([]); }}><X size={20} /></button>
             </div>
-          </Alert>
+            <div className={styles.addConfirmationList}>
+              {showAddConfirmation.map((med, i) => (
+                <button 
+                  key={i} 
+                  className={`${styles.addOption} ${selectedToAdd.includes(i) ? styles.selected : ''}`}
+                  onClick={() => {
+                    setSelectedToAdd(prev => 
+                      prev.includes(i) ? prev.filter(idx => idx !== i) : [...prev, i]
+                    );
+                  }}
+                >
+                  {selectedToAdd.includes(i) ? <Check size={16} /> : <div className={styles.emptyCheck} />}
+                  <span>{med.name}</span>
+                </button>
+              ))}
+            </div>
+            <div className={styles.addConfirmationActions}>
+              <Button variant="secondary" onClick={() => { setShowAddConfirmation(null); setSelectedToAdd([]); }}>Cancel</Button>
+              <Button onClick={() => {
+                const medsToAdd = selectedToAdd.map(i => showAddConfirmation[i]);
+                const med: Medication = {
+                  id: uuidv4(),
+                  name: medsToAdd[0].name,
+                  dosage: medsToAdd[0].dosage,
+                  frequency: 'daily',
+                  times: ['morning'],
+                  startDate: new Date().toISOString(),
+                };
+                addMedication(med);
+                generateCalendarEvents(med, new Date(), new Date(Date.now() + 30 * 24 * 60 * 60 * 1000));
+                const message = medsToAdd.length === 1 
+                  ? `Done! ${medsToAdd[0].name} has been added to your medications and calendar.`
+                  : `Done! ${medsToAdd.map(m => m.name).join(', ')} have been added to your medications and calendar.`;
+                addMsg({ role: 'bot', text: message });
+                setShowAddConfirmation(null);
+                setSelectedToAdd([]);
+              }} disabled={selectedToAdd.length === 0}>
+                <Plus size={18} />Add {selectedToAdd.length === 0 ? '' : selectedToAdd.length === 1 ? '1 medication' : `${selectedToAdd.length} medications`}
+              </Button>
+            </div>
+          </Card>
         )}
 
         <form onSubmit={handleSubmit} className={styles.inputForm}>

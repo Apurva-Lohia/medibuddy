@@ -1145,6 +1145,92 @@
   object-fit: contain;
 }
 
+/* ── add confirmation panel ── */
+
+.addConfirmationPanel {
+  margin: var(--space-4) 0;
+  padding: var(--space-4) !important;
+}
+
+.addConfirmationHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-4);
+}
+
+.addConfirmationHeader h3 {
+  font-size: var(--text-base);
+  font-weight: 600;
+  color: var(--gray-900);
+}
+
+.addConfirmationHeader button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--gray-400);
+  cursor: pointer;
+}
+
+.addConfirmationHeader button:hover {
+  background-color: var(--gray-100);
+  color: var(--gray-600);
+}
+
+.addConfirmationList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.addOption {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  background-color: var(--gray-100);
+  border: 2px solid transparent;
+  border-radius: var(--radius-full);
+  font-size: var(--text-sm);
+  color: var(--gray-700);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.addOption:hover {
+  background-color: var(--gray-200);
+}
+
+.addOption.selected {
+  background-color: oklch(65% 0.15 145 / 0.1);
+  border-color: var(--color-success);
+  color: var(--color-success);
+}
+
+.addOption .emptyCheck {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--gray-300);
+  border-radius: 4px;
+}
+
+.addOption.selected .emptyCheck {
+  display: none;
+}
+
+.addConfirmationActions {
+  display: flex;
+  gap: var(--space-3);
+  justify-content: flex-end;
+}
+
 .voiceError {
   text-align: center;
   font-size: var(--text-sm);

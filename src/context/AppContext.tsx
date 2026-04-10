@@ -25,6 +25,7 @@ type AppAction =
   | { type: 'UPDATE_MEDICATION'; payload: Medication }
   | { type: 'ADD_CALENDAR_EVENT'; payload: CalendarEvent }
   | { type: 'UPDATE_CALENDAR_EVENT'; payload: CalendarEvent }
+  | { type: 'REMOVE_CALENDAR_EVENTS_BY_MEDICATION'; payload: string }
   | { type: 'CONNECT_CALENDAR'; payload: ExternalCalendar }
   | { type: 'DISCONNECT_CALENDAR'; payload: ExternalCalendar['provider'] }
   | { type: 'UPDATE_USER'; payload: Partial<User> };
@@ -109,6 +110,11 @@ function appReducer(state: AppState, action: AppAction): AppState {
           e.id === action.payload.id ? action.payload : e
         ),
       };
+    case 'REMOVE_CALENDAR_EVENTS_BY_MEDICATION':
+      return {
+        ...state,
+        calendarEvents: state.calendarEvents.filter(e => e.medicationId !== action.payload),
+      };
     case 'CONNECT_CALENDAR':
       return {
         ...state,
@@ -147,6 +153,7 @@ interface AppContextType {
   updateMedication: (medication: Medication) => void;
   updateUser: (data: Partial<User>) => void;
   updateCalendarEvent: (event: CalendarEvent) => void;
+  removeCalendarEventsByMedication: (medicationId: string) => void;
   generateCalendarEvents: (medication: Medication, startDate: Date, endDate: Date) => void;
   connectCalendar: (provider: ExternalCalendar['provider']) => Promise<boolean>;
   disconnectCalendar: (provider: ExternalCalendar['provider']) => void;
@@ -279,6 +286,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const removeMedication = (id: string) => {
     dispatch({ type: 'REMOVE_MEDICATION', payload: id });
+    dispatch({ type: 'REMOVE_CALENDAR_EVENTS_BY_MEDICATION', payload: id });
   };
 
   const removePastMedication = (id: string) => {
@@ -295,6 +303,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const updateCalendarEvent = (event: CalendarEvent) => {
     dispatch({ type: 'UPDATE_CALENDAR_EVENT', payload: event });
+  };
+
+  const removeCalendarEventsByMedication = (medicationId: string) => {
+    dispatch({ type: 'REMOVE_CALENDAR_EVENTS_BY_MEDICATION', payload: medicationId });
   };
 
   const generateCalendarEvents = (medication: Medication, startDate: Date, endDate: Date) => {
@@ -351,6 +363,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         updateMedication,
         updateUser,
         updateCalendarEvent,
+        removeCalendarEventsByMedication,
         generateCalendarEvents,
         connectCalendar,
         disconnectCalendar,
