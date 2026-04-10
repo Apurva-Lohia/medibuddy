@@ -28,8 +28,7 @@ const steps = [
   { id: 1, title: 'Basic Info', icon: User },
   { id: 2, title: 'Physical Profile', icon: Ruler },
   { id: 3, title: 'Medical History', icon: Heart },
-  { id: 4, title: 'Current Medications', icon: Calendar },
-  { id: 5, title: 'Prescription Upload', icon: Upload },
+  { id: 4, title: 'Medications', icon: Calendar },
 ];
 
 const sexOptions = [
@@ -78,6 +77,7 @@ export default function Signup() {
   const [newAllergy, setNewAllergy] = useState('');
   const [newMedication, setNewMedication] = useState({ name: '', dosage: '' });
   const [drugSuggestions, setDrugSuggestions] = useState<{ name: string; category: string }[]>([]);
+  const [pendingExtractedMeds, setPendingExtractedMeds] = useState<{ name: string; dosage: string }[]>([]);
 
   useEffect(() => {
     if (state.isAuthenticated) {
@@ -245,22 +245,68 @@ export default function Signup() {
   };
 
   const confirmExtractedMedications = () => {
-    const newMeds: Medication[] = detectedMedications.map(name => ({
-      id: uuidv4(),
+    const extracted = detectedMedications.map(name => ({
       name,
       dosage: 'As prescribed',
-      frequency: 'daily',
-      times: ['morning'],
-      startDate: new Date().toISOString(),
     }));
     
-    setFormData(prev => ({
-      ...prev,
-      currentMedications: [...prev.currentMedications, ...newMeds]
-    }));
+    setPendingExtractedMeds(extracted);
     
     setExtractedText('');
     setDetectedMedications([]);
+  };
+
+  const addPendingMedication = (index: number) => {
+    const med = pendingExtractedMeds[index];
+    if (med.name && med.dosage) {
+      const medication: Medication = {
+        id: uuidv4(),
+        name: med.name,
+        dosage: med.dosage,
+        frequency: 'daily',
+        times: ['morning'],
+        startDate: new Date().toISOString(),
+      };
+      
+      setFormData(prev => ({
+        ...prev,
+        currentMedications: [...prev.currentMedications, medication]
+      }));
+      
+      setPendingExtractedMeds(prev => prev.filter((_, i) => i !== index));
+    }
+  };
+
+  const addAllPendingMedications = () => {
+    const newMeds: Medication[] = pendingExtractedMeds
+      .filter(med => med.name && med.dosage)
+      .map(med => ({
+        id: uuidv4(),
+        name: med.name,
+        dosage: med.dosage,
+        frequency: 'daily',
+        times: ['morning'],
+        startDate: new Date().toISOString(),
+      }));
+    
+    if (newMeds.length > 0) {
+      setFormData(prev => ({
+        ...prev,
+        currentMedications: [...prev.currentMedications, ...newMeds]
+      }));
+    }
+    
+    setPendingExtractedMeds([]);
+  };
+
+  const updatePendingMedDosage = (index: number, dosage: string) => {
+    setPendingExtractedMeds(prev => prev.map((med, i) => 
+      i === index ? { ...med, dosage } : med
+    ));
+  };
+
+  const removePendingMedication = (index: number) => {
+    setPendingExtractedMeds(prev => prev.filter((_, i) => i !== index));
   };
 
   const validateStep = (step: number): boolean => {
@@ -498,75 +544,8 @@ export default function Signup() {
       case 4:
         return (
           <div className={styles.stepContent}>
-            <h2 className={styles.stepTitle}>Current Medications</h2>
-            <p className={styles.stepDescription}>Add your current medications (you can also upload a prescription next)</p>
-            
-            <div className={styles.medicationForm}>
-              <div className={styles.medicationInputGroup}>
-                <Input
-                  label="Medication Name"
-                  placeholder="Start typing to search..."
-                  value={newMedication.name}
-                  onChange={(e) => handleMedicationNameChange(e.target.value)}
-                />
-                {drugSuggestions.length > 0 && (
-                  <ul className={styles.suggestions}>
-                    {drugSuggestions.map((drug, index) => (
-                      <li key={index} onClick={() => {
-                        setNewMedication(prev => ({ ...prev, name: drug.name }));
-                        setDrugSuggestions([]);
-                      }}>
-                        <strong>{drug.name}</strong>
-                        <span>{drug.category}</span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-              
-              <Input
-                label="Dosage"
-                placeholder="e.g., 500mg, 10ml"
-                value={newMedication.dosage}
-                onChange={(e) => setNewMedication(prev => ({ ...prev, dosage: e.target.value }))}
-              />
-              
-              <Button type="button" variant="secondary" onClick={() => addMedication(true)}>
-                <Plus size={20} />
-                Add Medication
-              </Button>
-            </div>
-            
-            {formData.currentMedications.length > 0 && (
-              <div className={styles.medicationList}>
-                <h3>Current Medications</h3>
-                {formData.currentMedications.map((med, index) => (
-                  <Card key={med.id} className={styles.medicationCard}>
-                    <div className={styles.medicationInfo}>
-                      <strong>{med.name}</strong>
-                      <span>{med.dosage}</span>
-                    </div>
-                    <button className={styles.removeButton} onClick={() => removeMedication('current', index)}>
-                      <X size={18} />
-                    </button>
-                  </Card>
-                ))}
-              </div>
-            )}
-            
-            {formData.currentMedications.length === 0 && (
-              <div className={styles.skipNotice}>
-                <p>No medications listed? You can skip this step and add medications later using our chatbot or by uploading a prescription.</p>
-              </div>
-            )}
-          </div>
-        );
-
-      case 5:
-        return (
-          <div className={styles.stepContent}>
-            <h2 className={styles.stepTitle}>Upload Prescription (Optional)</h2>
-            <p className={styles.stepDescription}>Upload a photo of your prescription and we&apos;ll automatically extract the medication names</p>
+            <h2 className={styles.stepTitle}>Medications</h2>
+            <p className={styles.stepDescription}>Upload a prescription or add medications manually</p>
             
             <div className={styles.uploadSection}>
               <input
@@ -639,17 +618,106 @@ export default function Signup() {
               </Card>
             )}
             
+            {pendingExtractedMeds.length > 0 && (
+              <div className={styles.pendingMedsSection}>
+                <h3 className={styles.sectionSubtitle}>
+                  <span className={styles.autoFilledBadge}>Auto-filled from prescription</span>
+                </h3>
+                <p className={styles.editHint}>Review and edit dosages below, then add each medication</p>
+                {pendingExtractedMeds.map((med, index) => (
+                  <Card key={index} className={styles.pendingMedCard}>
+                    <div className={styles.pendingMedInfo}>
+                      <strong>{med.name}</strong>
+                    </div>
+                    <Input
+                      placeholder="Dosage (e.g., 500mg)"
+                      value={med.dosage}
+                      onChange={(e) => updatePendingMedDosage(index, e.target.value)}
+                      className={styles.pendingDosageInput}
+                    />
+                    <div className={styles.pendingMedActions}>
+                      <Button size="sm" onClick={() => addPendingMedication(index)}>
+                        <Check size={16} />
+                        Add
+                      </Button>
+                      <button 
+                        className={styles.removeButton} 
+                        onClick={() => removePendingMedication(index)}
+                      >
+                        <X size={18} />
+                      </button>
+                    </div>
+                  </Card>
+                ))}
+                <Button 
+                  variant="secondary" 
+                  onClick={addAllPendingMedications}
+                  className={styles.addAllButton}
+                >
+                  Add All Medications
+                </Button>
+              </div>
+            )}
+            
+            <div className={styles.manualAddSection}>
+              <h3 className={styles.manualAddTitle}>Or add manually</h3>
+              <div className={styles.medicationForm}>
+                <div className={styles.medicationInputGroup}>
+                  <Input
+                    label="Medication Name"
+                    placeholder="Start typing to search..."
+                    value={newMedication.name}
+                    onChange={(e) => handleMedicationNameChange(e.target.value)}
+                  />
+                  {drugSuggestions.length > 0 && (
+                    <ul className={styles.suggestions}>
+                      {drugSuggestions.map((drug, index) => (
+                        <li key={index} onClick={() => {
+                          setNewMedication(prev => ({ ...prev, name: drug.name }));
+                          setDrugSuggestions([]);
+                        }}>
+                          <strong>{drug.name}</strong>
+                          <span>{drug.category}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+                
+                <Input
+                  label="Dosage"
+                  placeholder="e.g., 500mg, 10ml"
+                  value={newMedication.dosage}
+                  onChange={(e) => setNewMedication(prev => ({ ...prev, dosage: e.target.value }))}
+                />
+                
+                <Button type="button" variant="secondary" onClick={() => addMedication(true)}>
+                  <Plus size={20} />
+                  Add Medication
+                </Button>
+              </div>
+            </div>
+            
             {formData.currentMedications.length > 0 && (
-              <div className={styles.summarySection}>
-                <h3>Medications to be added:</h3>
-                <ul className={styles.summaryList}>
-                  {formData.currentMedications.map((med, index) => (
-                    <li key={index}>
-                      <Check size={16} className={styles.checkIcon} />
-                      {med.name} - {med.dosage}
-                    </li>
-                  ))}
-                </ul>
+              <div className={styles.medicationList}>
+                <h3>Current Medications</h3>
+                {formData.currentMedications.map((med, index) => (
+                  <Card key={med.id} className={styles.medicationCard}>
+                    <div className={styles.medicationInfo}>
+                      <strong>{med.name}</strong>
+                      <span>{med.dosage}</span>
+                    </div>
+                    <button className={styles.removeButton} onClick={() => removeMedication('current', index)}>
+                      <X size={18} />
+                    </button>
+                  </Card>
+                ))}
+              </div>
+            )}
+            
+            {formData.currentMedications.length === 0 && pendingExtractedMeds.length === 0 && (
+              <div className={styles.skipNotice}>
+                <p>No medications? You can skip this step and add medications later.</p>
               </div>
             )}
           </div>

@@ -185,6 +185,38 @@
   margin-bottom: var(--space-3);
 }
 
+.tagSectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-3);
+}
+
+.tagSectionHeader h3 {
+  margin-bottom: 0;
+}
+
+.addSmallButton {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  background: none;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: var(--gray-500);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.addSmallButton:hover {
+  background-color: var(--gray-50);
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
 .tagSection h3 svg {
   color: var(--color-primary);
 }
@@ -238,6 +270,11 @@
 .dangerTag {
   background-color: oklch(60% 0.18 25 / 0.1);
   color: var(--color-danger);
+}
+
+.pastTag {
+  background-color: var(--gray-100);
+  color: var(--gray-500);
 }
 
 .emptyState {
@@ -309,6 +346,51 @@
 .removeButton:hover {
   color: var(--color-danger);
   background-color: oklch(60% 0.18 25 / 0.1);
+}
+
+.pastMedication {
+  opacity: 0.7;
+}
+
+.pastMedication:hover {
+  background-color: var(--gray-50);
+}
+
+.endDate {
+  font-size: var(--text-xs) !important;
+  color: var(--gray-400) !important;
+  margin-top: var(--space-1);
+}
+
+.toggleGroup {
+  display: flex;
+  gap: var(--space-2);
+  padding: var(--space-1);
+  background-color: var(--gray-100);
+  border-radius: var(--radius-md);
+}
+
+.toggleButton {
+  flex: 1;
+  padding: var(--space-2) var(--space-4);
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--gray-500);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.toggleButton:hover {
+  color: var(--gray-700);
+}
+
+.toggleActive {
+  background-color: white;
+  color: var(--color-primary);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .sideColumn {
