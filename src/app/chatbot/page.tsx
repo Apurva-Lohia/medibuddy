@@ -278,7 +278,7 @@ export default function Chatbot() {
 
     addMsg({
       role: 'bot',
-      text: responseText,
+      text: safe && knownDrugs.length > 0 ? responseText : undefined,
       drugs: resolvedDrugs,
       interactionResult: {
         safe,
