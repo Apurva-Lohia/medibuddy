@@ -30,7 +30,7 @@ export default function Navigation() {
             <path d="M20 10C14.477 10 10 14.477 10 20C10 25.523 14.477 30 20 30C25.523 30 30 25.523 30 20C30 14.477 25.523 10 20 10ZM20 12C24.418 12 28 15.582 28 20C28 24.418 24.418 28 20 28C15.582 28 12 24.418 12 20C12 15.582 15.582 12 20 12ZM20 14L20 20L24.5 22.5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
             <circle cx="20" cy="20" r="2" fill="white"/>
           </svg>
-          <span className={styles.logoText}>MediCare</span>
+          <span className={styles.logoText}>MediLoop</span>
         </Link>
 
         <div className={styles.desktopNav}>

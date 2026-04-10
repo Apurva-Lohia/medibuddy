@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { format } from 'date-fns';
 import { v4 as uuidv4 } from 'uuid';
 import { Mail, Lock, User, Calendar, Ruler, Heart, AlertCircle, Check, Upload, X, Camera, Mic, MicOff, Plus } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
@@ -508,6 +507,7 @@ export default function Signup() {
                   placeholder="e.g., Type 2 Diabetes, Hypertension"
                   value={newCondition}
                   onChange={(e) => setNewCondition(e.target.value)}
+                  showVoiceInput
                   onVoiceInput={(v) => setNewCondition(v)}
                 />
                 <Button type="button" variant="secondary" onClick={() => addCondition('current')}>
@@ -531,6 +531,7 @@ export default function Signup() {
                   placeholder="e.g., Chickenpox, Broken arm"
                   value={newPastCondition}
                   onChange={(e) => setNewPastCondition(e.target.value)}
+                  showVoiceInput
                   onVoiceInput={(v) => setNewPastCondition(v)}
                 />
                 <Button type="button" variant="secondary" onClick={() => addCondition('past')}>
@@ -557,6 +558,7 @@ export default function Signup() {
                   placeholder="e.g., Penicillin, Sulfa drugs"
                   value={newAllergy}
                   onChange={(e) => setNewAllergy(e.target.value)}
+                  showVoiceInput
                   onVoiceInput={(v) => setNewAllergy(v)}
                 />
                 <Button type="button" variant="secondary" onClick={() => addCondition('allergy')}>
@@ -702,6 +704,8 @@ export default function Signup() {
                     placeholder="Start typing to search..."
                     value={newMedication.name}
                     onChange={(e) => handleMedicationNameChange(e.target.value)}
+                    showVoiceInput
+                    onVoiceInput={(v) => setNewMedication(prev => ({ ...prev, name: v }))}
                   />
                   {drugSuggestions.length > 0 && (
                     <ul className={styles.suggestions}>
@@ -764,6 +768,7 @@ export default function Signup() {
             <p className={styles.stepDescription}>Medications you have taken in the past</p>
             
             <div className={styles.manualAddSection}>
+              <h3 className={styles.manualAddTitle}>Add past medication</h3>
               <div className={styles.medicationForm}>
                 <div className={styles.medicationInputGroup}>
                   <Input
@@ -771,6 +776,8 @@ export default function Signup() {
                     placeholder="Start typing to search..."
                     value={newMedication.name}
                     onChange={(e) => handleMedicationNameChange(e.target.value)}
+                    showVoiceInput
+                    onVoiceInput={(v) => setNewMedication(prev => ({ ...prev, name: v }))}
                   />
                   {drugSuggestions.length > 0 && (
                     <ul className={styles.suggestions}>

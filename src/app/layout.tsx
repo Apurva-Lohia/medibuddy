@@ -4,7 +4,7 @@ import { AppProvider } from '@/context/AppContext';
 import Navigation from '@/components/layout/Navigation/Navigation';
 
 export const metadata: Metadata = {
-  title: 'MediCare Companion',
+  title: 'MediLoop',
   description: 'Your trusted healthcare companion for medication management and drug interaction checking',
   icons: {
     icon: [
