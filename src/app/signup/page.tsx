@@ -28,7 +28,8 @@ const steps = [
   { id: 1, title: 'Basic Info', icon: User },
   { id: 2, title: 'Physical Profile', icon: Ruler },
   { id: 3, title: 'Medical History', icon: Heart },
-  { id: 4, title: 'Medications', icon: Calendar },
+  { id: 4, title: 'Current Meds', icon: Calendar },
+  { id: 5, title: 'Past Meds', icon: Calendar },
 ];
 
 const sexOptions = [
@@ -74,6 +75,7 @@ export default function Signup() {
   });
 
   const [newCondition, setNewCondition] = useState('');
+  const [newPastCondition, setNewPastCondition] = useState('');
   const [newAllergy, setNewAllergy] = useState('');
   const [newMedication, setNewMedication] = useState({ name: '', dosage: '' });
   const [drugSuggestions, setDrugSuggestions] = useState<{ name: string; category: string }[]>([]);
@@ -127,30 +129,38 @@ export default function Signup() {
     }
   };
 
-  const addCondition = (type: 'current' | 'past') => {
-    const value = type === 'current' ? newCondition : newAllergy;
-    if (value.trim()) {
-      if (type === 'current') {
-        setFormData(prev => ({
-          ...prev,
-          currentConditions: [...prev.currentConditions, value.trim()]
-        }));
-        setNewCondition('');
-      } else {
-        setFormData(prev => ({
-          ...prev,
-          allergies: [...prev.allergies, value.trim()]
-        }));
-        setNewAllergy('');
-      }
+  const addCondition = (type: 'current' | 'past' | 'allergy') => {
+    if (type === 'current' && newCondition.trim()) {
+      setFormData(prev => ({
+        ...prev,
+        currentConditions: [...prev.currentConditions, newCondition.trim()]
+      }));
+      setNewCondition('');
+    } else if (type === 'past' && newPastCondition.trim()) {
+      setFormData(prev => ({
+        ...prev,
+        pastConditions: [...prev.pastConditions, newPastCondition.trim()]
+      }));
+      setNewPastCondition('');
+    } else if (type === 'allergy' && newAllergy.trim()) {
+      setFormData(prev => ({
+        ...prev,
+        allergies: [...prev.allergies, newAllergy.trim()]
+      }));
+      setNewAllergy('');
     }
   };
 
-  const removeCondition = (type: 'current' | 'past', index: number) => {
+  const removeCondition = (type: 'current' | 'past' | 'allergy', index: number) => {
     if (type === 'current') {
       setFormData(prev => ({
         ...prev,
         currentConditions: prev.currentConditions.filter((_, i) => i !== index)
+      }));
+    } else if (type === 'past') {
+      setFormData(prev => ({
+        ...prev,
+        pastConditions: prev.pastConditions.filter((_, i) => i !== index)
       }));
     } else {
       setFormData(prev => ({
@@ -335,6 +345,7 @@ export default function Signup() {
         return true;
       
       case 4:
+      case 5:
         return true;
       
       default:
@@ -514,6 +525,29 @@ export default function Signup() {
             </div>
             
             <div className={styles.listSection}>
+              <h3 className={styles.listTitle}>Past Health Conditions</h3>
+              <div className={styles.inputWithAction}>
+                <Input
+                  placeholder="e.g., Chickenpox, Broken arm"
+                  value={newPastCondition}
+                  onChange={(e) => setNewPastCondition(e.target.value)}
+                  onVoiceInput={(v) => setNewPastCondition(v)}
+                />
+                <Button type="button" variant="secondary" onClick={() => addCondition('past')}>
+                  <Plus size={20} />
+                </Button>
+              </div>
+              <div className={styles.tagList}>
+                {formData.pastConditions.map((condition, index) => (
+                  <span key={index} className={styles.tag}>
+                    {condition}
+                    <button onClick={() => removeCondition('past', index)}><X size={14} /></button>
+                  </span>
+                ))}
+              </div>
+            </div>
+            
+            <div className={styles.listSection}>
               <h3 className={styles.listTitle}>
                 <AlertCircle size={18} />
                 Known Allergies
@@ -525,7 +559,7 @@ export default function Signup() {
                   onChange={(e) => setNewAllergy(e.target.value)}
                   onVoiceInput={(v) => setNewAllergy(v)}
                 />
-                <Button type="button" variant="secondary" onClick={() => addCondition('past')}>
+                <Button type="button" variant="secondary" onClick={() => addCondition('allergy')}>
                   <Plus size={20} />
                 </Button>
               </div>
@@ -533,7 +567,7 @@ export default function Signup() {
                 {formData.allergies.map((allergy, index) => (
                   <span key={index} className={`${styles.tag} ${styles.dangerTag}`}>
                     {allergy}
-                    <button onClick={() => removeCondition('past', index)}><X size={14} /></button>
+                    <button onClick={() => removeCondition('allergy', index)}><X size={14} /></button>
                   </span>
                 ))}
               </div>
@@ -544,8 +578,8 @@ export default function Signup() {
       case 4:
         return (
           <div className={styles.stepContent}>
-            <h2 className={styles.stepTitle}>Medications</h2>
-            <p className={styles.stepDescription}>Upload a prescription or add medications manually</p>
+            <h2 className={styles.stepTitle}>Current Medications</h2>
+            <p className={styles.stepDescription}>Medications you are currently taking</p>
             
             <div className={styles.uploadSection}>
               <input
@@ -717,7 +751,76 @@ export default function Signup() {
             
             {formData.currentMedications.length === 0 && pendingExtractedMeds.length === 0 && (
               <div className={styles.skipNotice}>
-                <p>No medications? You can skip this step and add medications later.</p>
+                <p>No current medications? You can skip this step and add medications later.</p>
+              </div>
+            )}
+          </div>
+        );
+
+      case 5:
+        return (
+          <div className={styles.stepContent}>
+            <h2 className={styles.stepTitle}>Past Medications</h2>
+            <p className={styles.stepDescription}>Medications you have taken in the past</p>
+            
+            <div className={styles.manualAddSection}>
+              <div className={styles.medicationForm}>
+                <div className={styles.medicationInputGroup}>
+                  <Input
+                    label="Medication Name"
+                    placeholder="Start typing to search..."
+                    value={newMedication.name}
+                    onChange={(e) => handleMedicationNameChange(e.target.value)}
+                  />
+                  {drugSuggestions.length > 0 && (
+                    <ul className={styles.suggestions}>
+                      {drugSuggestions.map((drug, index) => (
+                        <li key={index} onClick={() => {
+                          setNewMedication(prev => ({ ...prev, name: drug.name }));
+                          setDrugSuggestions([]);
+                        }}>
+                          <strong>{drug.name}</strong>
+                          <span>{drug.category}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+                
+                <Input
+                  label="Dosage"
+                  placeholder="e.g., 500mg, 10ml"
+                  value={newMedication.dosage}
+                  onChange={(e) => setNewMedication(prev => ({ ...prev, dosage: e.target.value }))}
+                />
+                
+                <Button type="button" variant="secondary" onClick={() => addMedication(false)}>
+                  <Plus size={20} />
+                  Add Medication
+                </Button>
+              </div>
+            </div>
+            
+            {formData.pastMedications.length > 0 && (
+              <div className={styles.medicationList}>
+                <h3>Past Medications</h3>
+                {formData.pastMedications.map((med, index) => (
+                  <Card key={med.id} className={styles.medicationCard}>
+                    <div className={styles.medicationInfo}>
+                      <strong>{med.name}</strong>
+                      <span>{med.dosage}</span>
+                    </div>
+                    <button className={styles.removeButton} onClick={() => removeMedication('past', index)}>
+                      <X size={18} />
+                    </button>
+                  </Card>
+                ))}
+              </div>
+            )}
+            
+            {formData.pastMedications.length === 0 && (
+              <div className={styles.skipNotice}>
+                <p>No past medications? You can skip this step.</p>
               </div>
             )}
           </div>
