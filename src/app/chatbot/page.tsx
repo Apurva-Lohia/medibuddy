@@ -456,20 +456,14 @@ export default function Chatbot() {
       return;
     }
 
-    const resolvedDrugs = drugs.map(d => {
-      const found = findDrug(d);
-      return found ? found.name : d;
-    });
+    const resolvedDrugs = [...drugs];
 
     addMsg({ role: 'user', text: `Check interactions for: ${resolvedDrugs.join(', ')}` });
     addMsg({ role: 'bot', text: `Let me check these medications against our database...` });
 
     await new Promise(resolve => setTimeout(resolve, 1500));
 
-    const existingMeds = state.user?.currentMedications.map(m => {
-      const found = findDrug(m.name);
-      return found ? found.name : m.name;
-    }) || [];
+    const existingMeds = state.user?.currentMedications.map(m => m.name) || [];
     const allDrugs = [...existingMeds, ...resolvedDrugs];
     const result = checkDrugInteractions(allDrugs, state.user?.allergies || []);
 
@@ -523,7 +517,7 @@ export default function Chatbot() {
 
     if (safe) {
       if (knownDrugs.length > 0) {
-        let checkSummary = `I've checked the new medications (${knownDrugs.map(d => findDrug(d)?.name || d).join(', ')})`;
+        let checkSummary = `I've checked the new medications (${knownDrugs.join(', ')})`;
         if (hasExistingMeds) {
           checkSummary += ` against each other AND against your current medications (${existingMeds.join(', ')})`;
         }
@@ -531,7 +525,7 @@ export default function Chatbot() {
         responseText = `Good news! ${checkSummary}I didn't find any major interactions or allergy concerns.\n\n`;
         responseText += `Would you like me to add these medications to your profile so we can track them?`;
         const medsToConfirm = knownDrugs.map(d => ({
-          name: findDrug(d)?.name || d,
+          name: d,
           dosage: 'As prescribed',
         }));
         setShowAddConfirmation(medsToConfirm);

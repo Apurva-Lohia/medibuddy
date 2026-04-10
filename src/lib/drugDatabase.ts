@@ -559,6 +559,32 @@ export function searchDrugs(query: string): DrugInfo[] {
   ).slice(0, 10);
 }
 
+function getGenericName(name: string): string | undefined {
+  const drug = findDrug(name);
+  return drug?.name;
+}
+
+function isAceiArb(name: string): boolean {
+  const aceiArbDrugs = ['Lisinopril', 'Enalapril', 'Ramipril', 'Captopril', 'Benazepril', 'Perindopril', 'Trandolapril', 'Fosinopril', 'Moexipril', 'Quinapril', 'Losartan', 'Valsartan', 'Candesartan', 'Irbesartan', 'Telmisartan', 'Olmesartan', 'Eprosartan'];
+  const aceiArbAliases = ['Prinivil', 'Zestril', 'Vasotec', 'Renitec', 'Capoten', 'Lotensin', 'Aceon', 'Mavik', 'Monopril', 'Accupril', 'Cozaar', 'Diovan', 'Atacand', 'Avapro', 'Micardis', 'Benicar', 'Teveten'];
+  const nameLower = name.toLowerCase();
+  return aceiArbDrugs.some(d => d.toLowerCase() === nameLower) || aceiArbAliases.some(a => a.toLowerCase() === nameLower);
+}
+
+function isDiuretic(name: string): boolean {
+  const diureticDrugs = ['Furosemide', 'Bumetanide', 'Torsemide', 'Hydrochlorothiazide', 'Chlorthalidone', 'Metolazone', 'Indapamide', 'Spironolactone', 'Eplerenone', 'Triamterene', 'Amiloride'];
+  const diureticAliases = ['Lasix', 'Bumex', 'Demadex', 'HCTZ', 'Microzide', 'Oretic', 'Thalitone', 'Zaroxolyn', 'Lozol', 'Aldactone', 'Inspra', 'Dyrenium', 'Midamor'];
+  const nameLower = name.toLowerCase();
+  return diureticDrugs.some(d => d.toLowerCase() === nameLower) || diureticAliases.some(a => a.toLowerCase() === nameLower);
+}
+
+function isNsaid(name: string): boolean {
+  const nsaidDrugs = ['Aspirin', 'Ibuprofen', 'Naproxen', 'Diclofenac', 'Meloxicam', 'Celecoxib', 'Indomethacin', 'Ketorolac', 'Piroxicam', 'Sulindac', 'Etoricoxib', 'Mefenamic Acid', 'Ketoprofen', 'Flurbiprofen', 'Nabumetone'];
+  const nsaidAliases = ['Advil', 'Motrin', 'Aleve', 'Naprosyn', 'Anaprox', 'Cataflam', 'Voltaren', 'Mobic', 'Celebrex', 'Indocin', 'Toradol', 'Feldene', 'Clinoril', 'Arcoxia', 'Ponstan', 'Orudis', 'Lunesta', 'Relafen'];
+  const nameLower = name.toLowerCase();
+  return nsaidDrugs.some(d => d.toLowerCase() === nameLower) || nsaidAliases.some(a => a.toLowerCase() === nameLower);
+}
+
 export function checkDrugInteractions(
   drugNames: string[],
   userAllergies: string[] = []
@@ -572,51 +598,143 @@ export function checkDrugInteractions(
   const allergyAlerts: string[] = [];
   const drugNotFound: string[] = [];
 
-  const resolvedDrugs: string[] = [];
-  for (const name of drugNames) {
-    const drug = findDrug(name);
-    if (drug) {
-      resolvedDrugs.push(drug.name);
+  const originalNames = [...drugNames];
+  const validatedDrugs: string[] = [];
+  const unvalidatedDrugs: string[] = [];
+
+  for (const name of originalNames) {
+    const generic = getGenericName(name);
+    if (generic) {
+      validatedDrugs.push(name);
     } else {
-      drugNotFound.push(name);
+      unvalidatedDrugs.push(name);
     }
   }
+  drugNotFound.push(...unvalidatedDrugs);
 
-  for (let i = 0; i < resolvedDrugs.length; i++) {
-    for (let j = i + 1; j < resolvedDrugs.length; j++) {
-      const drug1Name = resolvedDrugs[i];
-      const drug2Name = resolvedDrugs[j];
+  const allDrugs = [...validatedDrugs, ...unvalidatedDrugs];
+  if (allDrugs.length < 2) {
+    return { safe: true, interactions, allergyAlerts, drugNotFound };
+  }
 
-      const drug1 = findDrug(drug1Name);
-      const drug2 = findDrug(drug2Name);
+  const hasAceiArb = allDrugs.some(d => isAceiArb(d));
+  const hasDiuretic = allDrugs.some(d => isDiuretic(d));
+  const hasNsaid = allDrugs.some(d => isNsaid(d));
 
-      if (!drug1 || !drug2) continue;
+  if (hasAceiArb && hasDiuretic && hasNsaid) {
+    const aceiArbDrug = allDrugs.find(d => isAceiArb(d))!;
+    const diureticDrug = allDrugs.find(d => isDiuretic(d))!;
+    const nsaidDrug = allDrugs.find(d => isNsaid(d))!;
+    interactions.push({
+      drug1: aceiArbDrug,
+      drug2: `${diureticDrug} + ${nsaidDrug}`,
+      severity: 'danger',
+      description: 'This combination (often called the "triple whammy") can cause acute kidney injury and dangerously high potassium levels. ACE inhibitors/ARBs reduce blood flow to kidneys, diuretics cause dehydration, and NSAIDs further damage kidney function.',
+      recommendation: 'Avoid this combination if possible. If you need all three, your doctor must monitor your kidney function (creatinine) and potassium levels closely. Consider using acetaminophen for pain instead of NSAIDs.',
+    });
+
+    const tripleDrugs = [aceiArbDrug, diureticDrug, nsaidDrug];
+    const tripleSet = new Set(tripleDrugs);
+
+    for (let i = 0; i < allDrugs.length; i++) {
+      for (let j = i + 1; j < allDrugs.length; j++) {
+        if (tripleSet.has(allDrugs[i])) continue;
+        if (tripleSet.has(allDrugs[j])) continue;
+
+        const drug1Name = allDrugs[i];
+        const drug2Name = allDrugs[j];
+
+        const drug1Generic = getGenericName(drug1Name);
+        const drug2Generic = getGenericName(drug2Name);
+
+        if (!drug1Generic || !drug2Generic) continue;
+
+        const d1 = findDrug(drug1Generic);
+        const d2 = findDrug(drug2Generic);
+        if (!d1 || !d2) continue;
+
+        for (const interaction of drugInteractions) {
+          const drug1Matches = interaction.drug1.includes(d1.name) || interaction.drug1.some(alias => d1.aliases.includes(alias));
+          const drug2Matches = interaction.drug2.includes(d2.name) || interaction.drug2.some(alias => d2.aliases.includes(alias));
+          const reverseDrug1Matches = interaction.drug2.includes(d1.name) || interaction.drug2.some(alias => d1.aliases.includes(alias));
+          const reverseDrug2Matches = interaction.drug1.includes(d2.name) || interaction.drug1.some(alias => d2.aliases.includes(alias));
+
+          const alreadyAdded = interactions.some(int => {
+            const existingDrugs = int.drug2.includes(' + ') ? [int.drug1, ...int.drug2.split(' + ')] : [int.drug1, int.drug2];
+            return existingDrugs.sort().join('|') === [drug1Name, drug2Name].sort().join('|');
+          });
+
+          if (!alreadyAdded && ((drug1Matches && drug2Matches) || (reverseDrug1Matches && reverseDrug2Matches))) {
+            interactions.push({
+              drug1: drug1Name,
+              drug2: drug2Name,
+              severity: interaction.severity,
+              description: interaction.description,
+              recommendation: interaction.recommendation,
+            });
+          }
+        }
+      }
+    }
+
+    return {
+      safe: interactions.length === 0 && allergyAlerts.length === 0,
+      interactions,
+      allergyAlerts,
+      drugNotFound,
+    };
+  }
+
+  for (let i = 0; i < allDrugs.length; i++) {
+    for (let j = i + 1; j < allDrugs.length; j++) {
+      const drug1Name = allDrugs[i];
+      const drug2Name = allDrugs[j];
+
+      const drug1Generic = getGenericName(drug1Name);
+      const drug2Generic = getGenericName(drug2Name);
+
+      if (!drug1Generic || !drug2Generic) continue;
+
+      const d1 = findDrug(drug1Generic);
+      const d2 = findDrug(drug2Generic);
+      if (!d1 || !d2) continue;
+
+      const aceiArb1 = isAceiArb(drug1Name);
+      const aceiArb2 = isAceiArb(drug2Name);
+      const diuretic1 = isDiuretic(drug1Name);
+      const diuretic2 = isDiuretic(drug2Name);
+      const nsaid1 = isNsaid(drug1Name);
+      const nsaid2 = isNsaid(drug2Name);
+
+      const isTripleWhammyPair = (aceiArb1 || aceiArb2) && (diuretic1 || diuretic2) && (nsaid1 || nsaid2);
 
       for (const interaction of drugInteractions) {
         const drug1Matches =
-          interaction.drug1.includes(drug1.name) ||
-          interaction.drug1.some(d => drug1.aliases.includes(d));
+          interaction.drug1.includes(d1.name) ||
+          interaction.drug1.some(d => d1.aliases.includes(d));
         const drug2Matches =
-          interaction.drug2.includes(drug2.name) ||
-          interaction.drug2.some(d => drug2.aliases.includes(d));
+          interaction.drug2.includes(d2.name) ||
+          interaction.drug2.some(d => d2.aliases.includes(d));
         
         const reverseDrug1Matches =
-          interaction.drug2.includes(drug1.name) ||
-          interaction.drug2.some(d => drug1.aliases.includes(d));
+          interaction.drug2.includes(d1.name) ||
+          interaction.drug2.some(d => d1.aliases.includes(d));
         const reverseDrug2Matches =
-          interaction.drug1.includes(drug2.name) ||
-          interaction.drug1.some(d => drug2.aliases.includes(d));
+          interaction.drug1.includes(d2.name) ||
+          interaction.drug1.some(d => d2.aliases.includes(d));
 
-        const alreadyAdded = interactions.some(
-          int => 
-            (int.drug1 === drug1.name && int.drug2 === drug2.name) ||
-            (int.drug1 === drug2.name && int.drug2 === drug1.name)
-        );
+        const alreadyAdded = interactions.some(int => {
+          const intDrugs = int.drug2.includes(' + ') ? [int.drug1, ...int.drug2.split(' + ')] : [int.drug1, int.drug2];
+          return intDrugs.sort().join('|') === [drug1Name, drug2Name].sort().join('|');
+        });
 
         if (!alreadyAdded && ((drug1Matches && drug2Matches) || (reverseDrug1Matches && reverseDrug2Matches))) {
+          if (hasAceiArb && hasDiuretic && hasNsaid && isTripleWhammyPair) {
+            continue;
+          }
           interactions.push({
-            drug1: drug1.name,
-            drug2: drug2.name,
+            drug1: drug1Name,
+            drug2: drug2Name,
             severity: interaction.severity,
             description: interaction.description,
             recommendation: interaction.recommendation,
