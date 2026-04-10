@@ -1,0 +1,36 @@
+.card {
+  background-color: var(--surface-secondary);
+  border-radius: var(--radius-lg);
+  transition: all var(--transition-base);
+}
+
+.default {
+  box-shadow: var(--shadow-sm);
+}
+
+.elevated {
+  box-shadow: var(--shadow-lg);
+}
+
+.outlined {
+  border: 2px solid var(--gray-200);
+  box-shadow: none;
+}
+
+.padding-sm {
+  padding: var(--space-4);
+}
+
+.padding-md {
+  padding: var(--space-5);
+}
+
+.padding-lg {
+  padding: var(--space-6);
+}
+
+@media (max-width: 768px) {
+  .padding-lg {
+    padding: var(--space-5);
+  }
+}

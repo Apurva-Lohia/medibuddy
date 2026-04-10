@@ -1,0 +1,194 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.label {
+  font-size: var(--text-base);
+  font-weight: 600;
+  color: var(--gray-700);
+}
+
+.inputWrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.input {
+  width: 100%;
+  height: 56px;
+  padding: 0 var(--space-4);
+  font-size: var(--text-base);
+  color: var(--gray-800);
+  background-color: var(--surface-secondary);
+  border: 2px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  transition: all var(--transition-fast);
+}
+
+.input::placeholder {
+  color: var(--gray-400);
+}
+
+.input:hover:not(:disabled) {
+  border-color: var(--gray-300);
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px oklch(65% 0.12 185 / 0.15);
+}
+
+.input:disabled {
+  background-color: var(--gray-100);
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.hasLeftIcon {
+  padding-left: calc(var(--space-4) + 24px + var(--space-2));
+}
+
+.hasVoiceInput {
+  padding-right: calc(var(--space-4) + 48px + var(--space-2));
+}
+
+.leftIcon {
+  position: absolute;
+  left: var(--space-4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--gray-400);
+  pointer-events: none;
+}
+
+.voiceButton {
+  position: absolute;
+  right: var(--space-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  color: var(--gray-500);
+  background-color: var(--gray-100);
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.voiceButton:hover {
+  color: var(--color-primary);
+  background-color: var(--color-primary-light);
+}
+
+.voiceButton.active {
+  color: white;
+  background-color: var(--color-danger);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+.listening {
+  border-color: var(--color-danger);
+  animation: listeningPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes listeningPulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 oklch(60% 0.18 25 / 0.3);
+  }
+  50% {
+    box-shadow: 0 0 0 4px oklch(60% 0.18 25 / 0.1);
+  }
+}
+
+.hasError .input {
+  border-color: var(--color-danger);
+}
+
+.hasError .input:focus {
+  box-shadow: 0 0 0 3px oklch(60% 0.18 25 / 0.15);
+}
+
+.error {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+  color: var(--color-danger);
+}
+
+.helperText {
+  font-size: var(--text-sm);
+  color: var(--gray-500);
+}
+
+.listeningIndicator {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--color-danger);
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.wave {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 16px;
+}
+
+.wave span {
+  width: 3px;
+  height: 100%;
+  background-color: var(--color-danger);
+  border-radius: var(--radius-full);
+  animation: wave 0.8s ease-in-out infinite;
+}
+
+.wave span:nth-child(1) {
+  animation-delay: 0s;
+}
+
+.wave span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.wave span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes wave {
+  0%, 100% {
+    transform: scaleY(0.3);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}

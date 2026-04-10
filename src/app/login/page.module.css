@@ -1,0 +1,149 @@
+.container {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-5);
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(135deg, var(--surface-primary) 0%, var(--gray-100) 100%);
+}
+
+.card {
+  width: 100%;
+  max-width: 440px;
+  background-color: var(--surface-secondary);
+  border-radius: var(--radius-xl);
+  padding: var(--space-8);
+  box-shadow: var(--shadow-xl);
+  position: relative;
+  z-index: 1;
+  animation: fadeIn 0.4s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.header {
+  text-align: center;
+  margin-bottom: var(--space-6);
+}
+
+.logo {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--color-primary);
+  margin-bottom: var(--space-5);
+}
+
+.logoIcon {
+  width: 48px;
+  height: 48px;
+}
+
+.logoText {
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  color: var(--gray-900);
+}
+
+.title {
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  color: var(--gray-900);
+  margin-bottom: var(--space-2);
+}
+
+.subtitle {
+  font-size: var(--text-base);
+  color: var(--gray-500);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.passwordField {
+  position: relative;
+}
+
+.passwordToggle {
+  position: absolute;
+  right: var(--space-4);
+  bottom: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  color: var(--gray-400);
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: color var(--transition-fast);
+}
+
+.passwordToggle:hover {
+  color: var(--gray-600);
+}
+
+.submitButton {
+  width: 100%;
+  margin-top: var(--space-2);
+}
+
+.footer {
+  text-align: center;
+  margin-top: var(--space-6);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--gray-200);
+}
+
+.footer p {
+  font-size: var(--text-base);
+  color: var(--gray-600);
+}
+
+.link {
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+.link:hover {
+  text-decoration: underline;
+}
+
+.decoration {
+  position: absolute;
+  right: -100px;
+  bottom: -100px;
+  opacity: 0.5;
+}
+
+.decorativeSvg {
+  width: 500px;
+  height: 500px;
+}
+
+@media (max-width: 480px) {
+  .card {
+    padding: var(--space-6);
+  }
+
+  .decoration {
+    display: none;
+  }
+}
