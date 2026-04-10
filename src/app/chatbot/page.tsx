@@ -9,7 +9,7 @@ import { useApp } from '@/context/AppContext';
 import Card from '@/components/ui/Card/Card';
 import Button from '@/components/ui/Button/Button';
 import Alert from '@/components/ui/Alert/Alert';
-import { checkDrugInteractions, searchDrugs, findDrug, drugDatabase } from '@/lib/drugDatabase';
+import { checkDrugInteractions, searchDrugs, findDrug, drugDatabase, findExtendedDrug, analyzeScheduleInteractions, getFoodInteractions, FoodInteraction, ScheduleEntry, foodCategories } from '@/lib/drugDatabase';
 import { Medication, DrugInteraction } from '@/types';
 import Tesseract from 'tesseract.js';
 import styles from './page.module.css';
@@ -86,6 +86,154 @@ function MessageBubble({ message }: { message: LocalMessage }) {
   );
 }
 
+interface ScheduleBuilderProps {
+  weeklySchedule: ScheduleEntry[];
+  setWeeklySchedule: React.Dispatch<React.SetStateAction<ScheduleEntry[]>>;
+  selectedDayForDrug: string;
+  setSelectedDayForDrug: (day: string) => void;
+  scheduleDrugInput: string;
+  setScheduleDrugInput: (value: string) => void;
+  scheduleDrugSuggestions: { name: string; category: string; aliases: string }[];
+  setScheduleDrugSuggestions: (suggestions: { name: string; category: string; aliases: string }[]) => void;
+  selectedFoods: { [drugName: string]: string[] };
+  setSelectedFoods: React.Dispatch<React.SetStateAction<{ [drugName: string]: string[] }>>;
+  onAnalyze: () => void;
+}
+
+function ScheduleBuilder({
+  weeklySchedule,
+  setWeeklySchedule,
+  selectedDayForDrug,
+  setSelectedDayForDrug,
+  scheduleDrugInput,
+  setScheduleDrugInput,
+  scheduleDrugSuggestions,
+  setScheduleDrugSuggestions,
+  selectedFoods,
+  setSelectedFoods,
+  onAnalyze,
+}: ScheduleBuilderProps) {
+  const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  
+  const handleDrugSearch = (value: string) => {
+    setScheduleDrugInput(value);
+    if (value.length > 2) {
+      const suggestions = searchDrugs(value);
+      setScheduleDrugSuggestions(suggestions.slice(0, 5).map(d => ({
+        name: d.name,
+        category: d.category,
+        aliases: d.aliases.length > 0 ? `aka ${d.aliases[0]}` : ''
+      })));
+    } else {
+      setScheduleDrugSuggestions([]);
+    }
+  };
+
+  const addDrugToDay = (drugName: string) => {
+    setWeeklySchedule(prev => prev.map(day => {
+      if (day.day === selectedDayForDrug) {
+        if (!day.drugs.some(d => d.name === drugName)) {
+          return { ...day, drugs: [...day.drugs, { name: drugName, dosage: 'As directed', times: ['morning'], withFood: '' }] };
+        }
+      }
+      return day;
+    }));
+    setScheduleDrugInput('');
+    setScheduleDrugSuggestions([]);
+  };
+
+  const removeDrugFromDay = (day: string, drugName: string) => {
+    setWeeklySchedule(prev => prev.map(d => {
+      if (d.day === day) {
+        return { ...d, drugs: d.drugs.filter(drug => drug.name !== drugName) };
+      }
+      return d;
+    }));
+  };
+
+  const hasAnyDrugs = weeklySchedule.some(day => day.drugs.length > 0);
+
+  return (
+    <Card className={styles.scheduleBuilder}>
+      <div className={styles.scheduleHeader}>
+        <h3>Weekly Medication Schedule</h3>
+        <p>Build your weekly schedule to check interactions across days</p>
+      </div>
+      
+      <div className={styles.scheduleGrid}>
+        {days.map(day => {
+          const dayData = weeklySchedule.find(d => d.day === day);
+          return (
+            <div key={day} className={`${styles.scheduleDay} ${day === selectedDayForDrug ? styles.selectedDay : ''}`}>
+              <button 
+                className={styles.dayHeader}
+                onClick={() => setSelectedDayForDrug(day)}
+              >
+                {day}
+                {dayData && dayData.drugs.length > 0 && (
+                  <span className={styles.drugCount}>{dayData.drugs.length}</span>
+                )}
+              </button>
+              <div className={styles.dayDrugs}>
+                {dayData?.drugs.map((drug, i) => (
+                  <div key={i} className={styles.dayDrugChip}>
+                    <span>{drug.name}</span>
+                    <button onClick={() => removeDrugFromDay(day, drug.name)}><X size={14} /></button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className={styles.scheduleInput}>
+        <div className={styles.daySelector}>
+          <label>Add to:</label>
+          <select value={selectedDayForDrug} onChange={(e) => setSelectedDayForDrug(e.target.value)}>
+            {days.map(day => (
+              <option key={day} value={day}>{day}</option>
+            ))}
+          </select>
+        </div>
+        <div className={styles.drugSearchWrapper}>
+          <input
+            type="text"
+            value={scheduleDrugInput}
+            onChange={(e) => handleDrugSearch(e.target.value)}
+            placeholder="Type medication name..."
+            className={styles.drugSearchInput}
+          />
+          {scheduleDrugSuggestions.length > 0 && (
+            <ul className={styles.drugSearchSuggestions}>
+              {scheduleDrugSuggestions.map((drug, i) => (
+                <li key={i} onClick={() => addDrugToDay(drug.name)}>
+                  <strong>{drug.name}</strong>
+                  <span>{drug.category}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        <Button 
+          onClick={() => addDrugToDay(scheduleDrugInput)} 
+          disabled={!scheduleDrugInput.trim()}
+        >
+          <Plus size={18} />Add
+        </Button>
+      </div>
+
+      {hasAnyDrugs && (
+        <div className={styles.scheduleAnalyze}>
+          <Button onClick={onAnalyze} variant="primary" size="lg">
+            <ShieldCheck size={20} />Analyze Weekly Schedule
+          </Button>
+        </div>
+      )}
+    </Card>
+  );
+}
+
 export default function Chatbot() {
   const router = useRouter();
   const { state, addMedication, generateCalendarEvents } = useApp();
@@ -104,6 +252,22 @@ export default function Chatbot() {
   const [drugSuggestions, setDrugSuggestions] = useState<{ name: string; category: string; aliases: string }[]>([]);
   const [ocrProgress, setOcrProgress] = useState(0);
   const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null);
+  
+  // Weekly schedule builder state
+  const [showScheduleBuilder, setShowScheduleBuilder] = useState(false);
+  const [weeklySchedule, setWeeklySchedule] = useState<ScheduleEntry[]>([
+    { day: 'Monday', drugs: [] },
+    { day: 'Tuesday', drugs: [] },
+    { day: 'Wednesday', drugs: [] },
+    { day: 'Thursday', drugs: [] },
+    { day: 'Friday', drugs: [] },
+    { day: 'Saturday', drugs: [] },
+    { day: 'Sunday', drugs: [] },
+  ]);
+  const [selectedDayForDrug, setSelectedDayForDrug] = useState<string>('Monday');
+  const [scheduleDrugInput, setScheduleDrugInput] = useState('');
+  const [scheduleDrugSuggestions, setScheduleDrugSuggestions] = useState<{ name: string; category: string; aliases: string }[]>([]);
+  const [selectedFoods, setSelectedFoods] = useState<{ [drugName: string]: string[] }>({});
 
   const addMsg = (msg: Omit<LocalMessage, 'id' | 'timestamp'>) => {
     setMessages(prev => [...prev, { ...msg, id: uuidv4(), timestamp: new Date().toISOString() }]);
@@ -426,6 +590,117 @@ export default function Chatbot() {
     setShowAddConfirmation(null);
   };
 
+  const analyzeSchedule = () => {
+    const analysis = analyzeScheduleInteractions(weeklySchedule);
+    
+    addMsg({ role: 'user', text: `Analyze weekly schedule for interactions` });
+    addMsg({ role: 'bot', text: `Analyzing your weekly medication schedule across all days and considering drug half-lives...` });
+
+    const allDrugs = weeklySchedule.flatMap(d => d.drugs.map(drug => drug.name));
+    const existingMeds = state.user?.currentMedications.map(m => m.name) || [];
+    const allDrugsWithExisting = [...new Set([...existingMeds, ...allDrugs])];
+    
+    const existingInteractionResult = checkDrugInteractions(allDrugsWithExisting, state.user?.allergies || []);
+    
+    let responseText = '';
+    
+    // Food interactions
+    if (analysis.foodInteractions.length > 0) {
+      responseText += '**FOOD INTERACTIONS:**\n\n';
+      analysis.foodInteractions.forEach(({ drug, interactions }) => {
+        responseText += `${drug}:\n`;
+        interactions.forEach(fi => {
+          const effectIcon = fi.effect === 'danger' || fi.effect === 'block' ? '🚫' : 
+                            fi.effect === 'increase' ? '⚠️' : '📉';
+          responseText += `  ${effectIcon} ${fi.food}: ${fi.description}\n`;
+          responseText += `     ${fi.recommendation}\n\n`;
+        });
+      });
+      responseText += '\n';
+    }
+    
+    // Half-life warnings
+    if (analysis.halfLifeWarnings.length > 0) {
+      responseText += '**HALF-LIFE WARNINGS:**\n\n';
+      analysis.halfLifeWarnings.forEach(({ drug, warning }) => {
+        responseText += `⏱️ ${warning}\n\n`;
+      });
+      responseText += '\n';
+    }
+    
+    // Same-day interactions
+    if (analysis.sameDayInteractions.length > 0) {
+      const dangers = analysis.sameDayInteractions.filter(i => i.severity === 'danger');
+      const cautions = analysis.sameDayInteractions.filter(i => i.severity === 'caution');
+      
+      if (dangers.length > 0) {
+        responseText += '**SAME-DAY INTERACTIONS (DO NOT COMBINE):**\n\n';
+        dangers.forEach(int => {
+          responseText += `🚫 ${int.drug1} + ${int.drug2}\n`;
+          responseText += `   ${int.description}\n`;
+          responseText += `   ${int.recommendation}\n\n`;
+        });
+      }
+      
+      if (cautions.length > 0) {
+        responseText += '**SAME-DAY INTERACTIONS (USE CAUTION):**\n\n';
+        cautions.forEach(int => {
+          responseText += `⚠️ ${int.drug1} + ${int.drug2}\n`;
+          responseText += `   ${int.description}\n`;
+          responseText += `   ${int.recommendation}\n\n`;
+        });
+      }
+    }
+    
+    // Temporal (cross-day) interactions
+    if (analysis.temporalInteractions.length > 0) {
+      responseText += '**CROSS-DAY INTERACTIONS (Drug from previous days still in system):**\n\n';
+      analysis.temporalInteractions.forEach(int => {
+        const icon = int.severity === 'danger' ? '🚫' : '⚠️';
+        responseText += `${icon} ${int.drug1} + ${int.drug2} (due to half-life)\n`;
+        responseText += `   ${int.description}\n`;
+        responseText += `   ${int.recommendation}\n\n`;
+      });
+    }
+    
+    // Check against existing medications
+    if (existingInteractionResult.interactions.length > 0) {
+      responseText += '**INTERACTIONS WITH YOUR CURRENT MEDICATIONS:**\n\n';
+      existingInteractionResult.interactions.forEach(int => {
+        const icon = int.severity === 'danger' ? '🚫' : '⚠️';
+        responseText += `${icon} ${int.drug1} + ${int.drug2}\n`;
+        responseText += `   ${int.description}\n`;
+        responseText += `   ${int.recommendation}\n\n`;
+      });
+    }
+    
+    // Allergy alerts
+    if (existingInteractionResult.allergyAlerts.length > 0) {
+      responseText += '**ALLERGY ALERTS:**\n\n';
+      existingInteractionResult.allergyAlerts.forEach(alert => {
+        responseText += `⚠️ ${alert}\n\n`;
+      });
+    }
+    
+    // Summary
+    const totalIssues = analysis.sameDayInteractions.length + 
+                        analysis.temporalInteractions.length + 
+                        existingInteractionResult.interactions.length +
+                        analysis.foodInteractions.length;
+    
+    if (totalIssues === 0 && existingInteractionResult.allergyAlerts.length === 0) {
+      responseText = '✅ **All Clear!**\n\nNo significant drug-drug, food-drug, or cross-day interactions found in your weekly schedule.\n\n';
+      responseText += 'Medications checked: ' + allDrugsWithExisting.join(', ');
+    } else {
+      responseText = `📋 **Analysis Complete**\n\nFound ${totalIssues} interaction issue${totalIssues !== 1 ? 's' : ''} (plus ${existingInteractionResult.allergyAlerts.length} allergy alerts).\n\n`;
+      responseText += 'Please review the warnings above and consult your doctor or pharmacist.\n\n';
+      responseText += 'Medications checked: ' + allDrugsWithExisting.join(', ');
+    }
+    
+    addMsg({ role: 'bot', text: responseText });
+    setShowScheduleBuilder(false);
+  };
+
   if (state.isLoading || !state.isAuthenticated) return null;
 
   return (
@@ -436,13 +711,34 @@ export default function Chatbot() {
             <h1>Drug Interaction Checker</h1>
             <p>Enter medication names or upload a prescription (image or PDF)</p>
           </div>
-          <Button variant={showMedicationPanel ? 'primary' : 'secondary'} onClick={() => setShowMedicationPanel(!showMedicationPanel)}>
-            <Pill size={20} />
-            My Medications ({state.user?.currentMedications.length || 0})
-          </Button>
+          <div className={styles.headerActions}>
+            <Button variant={showScheduleBuilder ? 'primary' : 'secondary'} onClick={() => setShowScheduleBuilder(!showScheduleBuilder)}>
+              Calendar
+            </Button>
+            <Button variant={showMedicationPanel ? 'primary' : 'secondary'} onClick={() => setShowMedicationPanel(!showMedicationPanel)}>
+              <Pill size={20} />
+              My Medications ({state.user?.currentMedications.length || 0})
+            </Button>
+          </div>
         </div>
 
-        {messages.length === 0 ? (
+        {showScheduleBuilder && (
+          <ScheduleBuilder
+            weeklySchedule={weeklySchedule}
+            setWeeklySchedule={setWeeklySchedule}
+            selectedDayForDrug={selectedDayForDrug}
+            setSelectedDayForDrug={setSelectedDayForDrug}
+            scheduleDrugInput={scheduleDrugInput}
+            setScheduleDrugInput={setScheduleDrugInput}
+            scheduleDrugSuggestions={scheduleDrugSuggestions}
+            setScheduleDrugSuggestions={setScheduleDrugSuggestions}
+            selectedFoods={selectedFoods}
+            setSelectedFoods={setSelectedFoods}
+            onAnalyze={analyzeSchedule}
+          />
+        )}
+
+        {messages.length === 0 && !showScheduleBuilder ? (
           <div className={styles.welcomeState}>
             <div className={styles.welcomeIcon}><Pill size={64} /></div>
             <h2>Welcome to Drug Interaction Checker</h2>
@@ -453,12 +749,26 @@ export default function Chatbot() {
               <button onClick={() => checkInteractions(['Metformin', 'Ibuprofen'])}>Check Metformin + Ibuprofen</button>
               <button onClick={() => checkInteractions(['Sertraline', 'Tramadol'])}>Check Sertraline + Tramadol</button>
             </div>
+            <Button onClick={() => setShowScheduleBuilder(true)} className={styles.scheduleButton}>
+              <Plus size={18} />Build Weekly Schedule
+            </Button>
           </div>
         ) : (
           <div className={styles.messagesContainer}>
             {messages.map(msg => <MessageBubble key={msg.id} message={msg} />)}
             <div ref={messagesEndRef} />
           </div>
+        )}
+
+        {messages.length > 0 && (
+          <Button 
+            variant={showScheduleBuilder ? 'primary' : 'secondary'} 
+            onClick={() => setShowScheduleBuilder(!showScheduleBuilder)}
+            className={styles.scheduleToggleBtn}
+          >
+            <Plus size={18} />
+            {showScheduleBuilder ? 'Close Weekly Schedule' : 'Build Weekly Schedule'}
+          </Button>
         )}
 
         {extractedDrugs.length > 0 && (

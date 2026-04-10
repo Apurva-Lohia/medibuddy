@@ -682,3 +682,311 @@ export function getDrugCategories(): string[] {
 export function getDrugsByCategory(category: string): DrugInfo[] {
   return drugDatabase.filter(d => d.category === category);
 }
+
+// ==========================================
+// EXTENDED DRUG DATABASE FOR TEMPORAL & FOOD INTERACTIONS
+// ==========================================
+
+interface ExtendedDrugInfo extends DrugInfo {
+  halfLifeHours: number;
+  foodInteractions: FoodInteraction[];
+  takeWithFood: 'required' | 'recommended' | 'avoid' | 'none';
+  alcoholWarning: boolean;
+}
+
+export interface FoodInteraction {
+  food: string;
+  effect: 'increase' | 'decrease' | 'block' | 'danger';
+  description: string;
+  recommendation: string;
+}
+
+interface TemporalInteraction {
+  drug1: string;
+  drug2: string;
+  halfLifeHours: number;
+  minGapHours: number;
+  severity: 'danger' | 'caution';
+  description: string;
+  recommendation: string;
+}
+
+const extendedDrugDatabase: ExtendedDrugInfo[] = [
+  // Blood Thinners
+  { name: 'Warfarin', aliases: ['Coumadin', 'Jantoven'], category: 'Blood Thinner', ingredients: ['warfarin sodium'], halfLifeHours: 72, takeWithFood: 'none', alcoholWarning: true, foodInteractions: [
+    { food: 'Leafy Green Vegetables', effect: 'decrease', description: 'Vitamin K in leafy greens reduces Warfarin effectiveness', recommendation: 'Keep vitamin K intake consistent; avoid large changes' },
+    { food: 'Cranberry', effect: 'increase', description: 'May increase bleeding risk', recommendation: 'Limit cranberry products while on Warfarin' },
+    { food: 'Grapefruit', effect: 'increase', description: 'May increase Warfarin levels and bleeding risk', recommendation: 'Avoid grapefruit juice' },
+    { food: 'Alcohol', effect: 'increase', description: 'Alcohol increases bleeding risk with Warfarin', recommendation: 'Limit alcohol; avoid binge drinking' },
+  ]},
+  { name: 'Aspirin', aliases: ['Bayer', 'Ecotrin', 'Bufferin'], category: 'Blood Thinner', ingredients: ['acetylsalicylic acid'], halfLifeHours: 6, takeWithFood: 'recommended', alcoholWarning: true, foodInteractions: [
+    { food: 'Alcohol', effect: 'increase', description: 'Increases risk of stomach bleeding', recommendation: 'Avoid alcohol while taking Aspirin' },
+    { food: 'Ibuprofen', effect: 'danger', description: 'Ibuprofen can block Aspirin benefits for heart protection', recommendation: 'Take Aspirin at least 30 minutes before or 8 hours after Ibuprofen' },
+  ]},
+  { name: 'Clopidogrel', aliases: ['Plavix'], category: 'Blood Thinner', ingredients: ['clopidogrel bisulfate'], halfLifeHours: 6, takeWithFood: 'required', alcoholWarning: true, foodInteractions: [
+    { food: 'Omeprazole', effect: 'decrease', description: 'Reduces Clopidogrel effectiveness', recommendation: 'Avoid taking with Omeprazole; use Pantoprazole instead' },
+    { food: 'Alcohol', effect: 'increase', description: 'May increase bleeding risk', recommendation: 'Limit alcohol consumption' },
+  ]},
+
+  // Heart Medications
+  { name: 'Digoxin', aliases: ['Lanoxin'], category: 'Heart Medication', ingredients: ['digoxin'], halfLifeHours: 48, takeWithFood: 'required', alcoholWarning: true, foodInteractions: [
+    { food: 'Fiber', effect: 'decrease', description: 'High fiber diet reduces Digoxin absorption', recommendation: 'Take Digoxin 2 hours before or after meals with high fiber' },
+    { food: 'Grapefruit', effect: 'increase', description: 'May increase Digoxin levels dangerously', recommendation: 'Avoid grapefruit juice' },
+    { food: 'Antacids', effect: 'decrease', description: 'Reduces Digoxin absorption', recommendation: 'Take Digoxin 2 hours before or after antacids' },
+  ]},
+  { name: 'Lisinopril', aliases: ['Prinivil', 'Zestril'], category: 'Blood Pressure', ingredients: ['lisinopril'], halfLifeHours: 12, takeWithFood: 'none', alcoholWarning: true, foodInteractions: [
+    { food: 'Potassium Foods', effect: 'increase', description: 'May cause dangerously high potassium levels', recommendation: 'Limit potassium-rich foods like bananas, oranges, potatoes' },
+    { food: 'Salt Substitutes', effect: 'increase', description: 'Often contain potassium; risk of hyperkalemia', recommendation: 'Use regular salt, not potassium substitutes' },
+    { food: 'Alcohol', effect: 'increase', description: 'May cause excessive blood pressure drop', recommendation: 'Limit alcohol; avoid if feeling dizzy' },
+  ]},
+  { name: 'Metoprolol', aliases: ['Lopressor', 'Toprol-XL'], category: 'Heart Medication', ingredients: ['metoprolol tartrate'], halfLifeHours: 6, takeWithFood: 'none', alcoholWarning: true, foodInteractions: [
+    { food: 'Alcohol', effect: 'increase', description: 'May cause excessive heart rate/blood pressure drop', recommendation: 'Limit alcohol' },
+  ]},
+  { name: 'Amlodipine', aliases: ['Norvasc'], category: 'Blood Pressure', ingredients: ['amlodipine besylate'], halfLifeHours: 35, takeWithFood: 'none', alcoholWarning: true, foodInteractions: [
+    { food: 'Grapefruit', effect: 'increase', description: 'May increase Amlodipine levels causing swelling', recommendation: 'Avoid grapefruit juice' },
+    { food: 'Alcohol', effect: 'increase', description: 'May lower blood pressure too much', recommendation: 'Limit alcohol' },
+  ]},
+
+  // Diabetes Medications
+  { name: 'Metformin', aliases: ['Glucophage'], category: 'Diabetes', ingredients: ['metformin hydrochloride'], halfLifeHours: 6, takeWithFood: 'required', alcoholWarning: true, foodInteractions: [
+    { food: 'Alcohol', effect: 'danger', description: 'Risk of lactic acidosis; alcohol increases lactic acid', recommendation: 'Avoid alcohol while on Metformin; limit to special occasions' },
+    { food: 'Iodine Contrast', effect: 'danger', description: 'Risk of lactic acidosis; stop Metformin before contrast procedures', recommendation: 'Stop Metformin 48 hours before/after contrast procedures' },
+  ]},
+  { name: 'Glipizide', aliases: ['Glucotrol'], category: 'Diabetes', ingredients: ['glipizide'], halfLifeHours: 4, takeWithFood: 'required', alcoholWarning: true, foodInteractions: [
+    { food: 'Alcohol', effect: 'danger', description: 'Risk of disulfiram-like reaction', recommendation: 'Avoid alcohol' },
+  ]},
+
+  // Pain Relievers
+  { name: 'Ibuprofen', aliases: ['Advil', 'Motrin'], category: 'Pain Reliever', ingredients: ['ibuprofen'], halfLifeHours: 4, takeWithFood: 'recommended', alcoholWarning: true, foodInteractions: [
+    { food: 'Alcohol', effect: 'increase', description: 'Increases risk of stomach bleeding', recommendation: 'Avoid alcohol while taking Ibuprofen' },
+    { food: 'Aspirin', effect: 'block', description: 'May reduce Aspirin heart protection', recommendation: 'Take at different times of day' },
+  ]},
+  { name: 'Paracetamol', aliases: ['Acetaminophen', 'Tylenol'], category: 'Pain Reliever', ingredients: ['paracetamol'], halfLifeHours: 4, takeWithFood: 'none', alcoholWarning: true, foodInteractions: [
+    { food: 'Alcohol', effect: 'danger', description: 'Increases risk of liver damage', recommendation: 'Avoid alcohol; never exceed 4g in 24 hours' },
+  ]},
+
+  // Antibiotics
+  { name: 'Ciprofloxacin', aliases: ['Cipro'], category: 'Antibiotic', ingredients: ['ciprofloxacin'], halfLifeHours: 6, takeWithFood: 'none', alcoholWarning: true, foodInteractions: [
+    { food: 'Dairy Products', effect: 'decrease', description: 'Calcium reduces antibiotic absorption by 40%', recommendation: 'Avoid dairy 2 hours before/after taking Cipro' },
+    { food: 'Caffeine', effect: 'increase', description: 'May increase caffeine effects and jitteriness', recommendation: 'Limit caffeine while on antibiotics' },
+    { food: 'Antacids', effect: 'decrease', description: 'Reduces absorption', recommendation: 'Take 2 hours before or 6 hours after antacids' },
+  ]},
+  { name: 'Tetracycline', aliases: ['Sumamed', 'Zithromax'], category: 'Antibiotic', ingredients: ['azithromycin'], halfLifeHours: 68, takeWithFood: 'none', alcoholWarning: true, foodInteractions: [
+    { food: 'Dairy Products', effect: 'decrease', description: 'Calcium reduces absorption', recommendation: 'Avoid dairy 2 hours before/after' },
+    { food: 'Antacids', effect: 'decrease', description: 'Reduces absorption', recommendation: 'Take 2 hours before or after antacids' },
+  ]},
+  { name: 'Metronidazole', aliases: ['Flagyl'], category: 'Antibiotic', ingredients: ['metronidazole'], halfLifeHours: 8, takeWithFood: 'recommended', alcoholWarning: true, foodInteractions: [
+    { food: 'Alcohol', effect: 'danger', description: 'Causes severe nausea, vomiting, flushing (disulfiram-like reaction)', recommendation: 'Avoid all alcohol; wait 3 days after finishing Metronidazole' },
+  ]},
+  { name: 'Doxycycline', aliases: ['Vibramycin'], category: 'Antibiotic', ingredients: ['doxycycline'], halfLifeHours: 18, takeWithFood: 'required', alcoholWarning: false, foodInteractions: [
+    { food: 'Dairy Products', effect: 'decrease', description: 'Calcium reduces absorption by 50%', recommendation: 'Avoid dairy 2 hours before/after taking Doxycycline' },
+    { food: 'Alcohol', effect: 'decrease', description: 'May reduce antibiotic effectiveness', recommendation: 'Avoid alcohol while taking antibiotics' },
+  ]},
+
+  // Mental Health
+  { name: 'Sertraline', aliases: ['Zoloft'], category: 'Antidepressant', ingredients: ['sertraline'], halfLifeHours: 26, takeWithFood: 'none', alcoholWarning: true, foodInteractions: [
+    { food: 'Alcohol', effect: 'increase', description: 'Increases drowsiness; worsens depression', recommendation: 'Avoid alcohol while on Sertraline' },
+    { food: 'Grapefruit', effect: 'increase', description: 'May increase Sertraline levels', recommendation: 'Avoid grapefruit juice' },
+  ]},
+  { name: 'Fluoxetine', aliases: ['Prozac'], category: 'Antidepressant', ingredients: ['fluoxetine'], halfLifeHours: 72, takeWithFood: 'none', alcoholWarning: true, foodInteractions: [
+    { food: 'Alcohol', effect: 'increase', description: 'Increases drowsiness and sedation', recommendation: 'Avoid alcohol' },
+  ]},
+  { name: 'Tramadol', aliases: ['Ultram'], category: 'Pain Medication', ingredients: ['tramadol'], halfLifeHours: 6, takeWithFood: 'none', alcoholWarning: true, foodInteractions: [
+    { food: 'Alcohol', effect: 'danger', description: 'Risk of respiratory depression', recommendation: 'Never combine Tramadol with alcohol' },
+    { food: 'Serotonin Foods', effect: 'increase', description: 'Risk of serotonin syndrome', recommendation: 'Limit tyramine-rich foods (aged cheese, cured meats)' },
+  ]},
+
+  // Statins
+  { name: 'Simvastatin', aliases: ['Zocor'], category: 'Statin', ingredients: ['simvastatin'], halfLifeHours: 6, takeWithFood: 'none', alcoholWarning: true, foodInteractions: [
+    { food: 'Grapefruit', effect: 'danger', description: 'Grapefruit can increase simvastatin levels 15x, causing muscle damage', recommendation: 'AVOID grapefruit and grapefruit juice completely' },
+    { food: 'Alcohol', effect: 'increase', description: 'May increase risk of liver damage', recommendation: 'Limit alcohol' },
+  ]},
+  { name: 'Atorvastatin', aliases: ['Lipitor'], category: 'Statin', ingredients: ['atorvastatin calcium'], halfLifeHours: 14, takeWithFood: 'none', alcoholWarning: true, foodInteractions: [
+    { food: 'Grapefruit', effect: 'increase', description: 'May increase Atorvastatin levels', recommendation: 'Limit grapefruit juice to small amounts' },
+    { food: 'Alcohol', effect: 'increase', description: 'May increase risk of liver damage', recommendation: 'Limit alcohol' },
+  ]},
+
+  // Thyroid
+  { name: 'Levothyroxine', aliases: ['Synthroid', 'Levoxyl'], category: 'Thyroid', ingredients: ['levothyroxine sodium'], halfLifeHours: 168, takeWithFood: 'none', alcoholWarning: false, foodInteractions: [
+    { food: 'Soy', effect: 'decrease', description: 'Soy reduces Levothyroxine absorption', recommendation: 'Take on empty stomach; avoid soy products 4 hours before/after' },
+    { food: 'Coffee', effect: 'decrease', description: 'May reduce absorption', recommendation: 'Wait 30-60 minutes after taking before drinking coffee' },
+    { food: 'Calcium', effect: 'decrease', description: 'Calcium reduces absorption by 25%', recommendation: 'Take 4 hours apart from calcium supplements' },
+    { food: 'Iron', effect: 'decrease', description: 'Iron reduces absorption significantly', recommendation: 'Take 4 hours apart from iron supplements' },
+  ]},
+];
+
+// Food categories for UI
+export const foodCategories = {
+  'Fruits': ['Grapefruit', 'Cranberry', 'Bananas', 'Oranges', 'Apples'],
+  'Vegetables': ['Leafy Green Vegetables', 'Spinach', 'Kale', 'Broccoli'],
+  'Dairy': ['Milk', 'Cheese', 'Yogurt', 'Ice Cream'],
+  'Beverages': ['Alcohol', 'Caffeine', 'Coffee', 'Green Tea'],
+  'Supplements': ['Calcium', 'Iron', 'Vitamin K', 'Fiber'],
+  'Other': ['Salt Substitutes', 'Tyramine-rich Foods', 'High-fat Foods'],
+};
+
+export function findExtendedDrug(drugName: string): ExtendedDrugInfo | undefined {
+  const normalizedName = drugName.toLowerCase().trim();
+  return extendedDrugDatabase.find(drug => 
+    drug.name.toLowerCase() === normalizedName ||
+    drug.aliases.some(alias => alias.toLowerCase() === normalizedName)
+  );
+}
+
+export function getFoodInteractions(drugName: string): FoodInteraction[] {
+  const drug = findExtendedDrug(drugName);
+  return drug?.foodInteractions || [];
+}
+
+export function checkFoodInteractions(drugs: string[]): { drug: string; interactions: FoodInteraction[] }[] {
+  const results: { drug: string; interactions: FoodInteraction[] }[] = [];
+  
+  drugs.forEach(drugName => {
+    const interactions = getFoodInteractions(drugName);
+    if (interactions.length > 0) {
+      results.push({ drug: drugName, interactions });
+    }
+  });
+  
+  return results;
+}
+
+export function checkTemporalInteractions(
+  schedule: { day: string; drugs: string[] }[]
+): TemporalInteraction[] {
+  const interactions: TemporalInteraction[] = [];
+  const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  
+  // Check interactions between drugs taken on different days considering half-life
+  for (let i = 0; i < schedule.length; i++) {
+    const currentDayDrugs = schedule[i].drugs;
+    const currentDayIndex = days.indexOf(schedule[i].day);
+    
+    // Check against previous days based on half-life
+    for (let prevDayOffset = 1; prevDayOffset <= 7; prevDayOffset++) {
+      const prevDayIndex = (currentDayIndex - prevDayOffset + 7) % 7;
+      const prevDayData = schedule.find(s => days[prevDayIndex] === s.day);
+      
+      if (!prevDayData) continue;
+      
+      const prevDayDrugs = prevDayData.drugs;
+      
+      // Check each drug pair
+      for (const currentDrug of currentDayDrugs) {
+        const extendedDrug = findExtendedDrug(currentDrug);
+        if (!extendedDrug) continue;
+        
+        // Check if there's still significant residual from previous day
+        // After 1 half-life, ~50% remains; after 2, ~25%; after 3, ~12.5%
+        const halfLivesAgo = prevDayOffset;
+        
+        if (halfLivesAgo <= 3) {
+          // Still significant residual
+          for (const prevDrug of prevDayDrugs) {
+            // Check for temporal interactions
+            const temporalInt = findTemporalInteraction(currentDrug, prevDrug, extendedDrug.halfLifeHours);
+            if (temporalInt && prevDayOffset <= Math.ceil(temporalInt.halfLifeHours / 24)) {
+              // Check if this interaction already exists
+              const exists = interactions.some(int => 
+                (int.drug1 === temporalInt.drug1 && int.drug2 === temporalInt.drug2) ||
+                (int.drug1 === temporalInt.drug2 && int.drug2 === temporalInt.drug1)
+              );
+              if (!exists) {
+                interactions.push({
+                  ...temporalInt,
+                  description: `${temporalInt.description} (${prevDrug} from ${prevDayData.day} still in system: ~${Math.round(100 / Math.pow(2, halfLivesAgo))}% remains after ${halfLivesAgo} day${halfLivesAgo > 1 ? 's' : ''})`,
+                });
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  
+  return interactions;
+}
+
+function findTemporalInteraction(drug1: string, drug2: string, halfLife1: number): TemporalInteraction | undefined {
+  const temporalInteractions: TemporalInteraction[] = [
+    { drug1: 'Warfarin', drug2: 'Aspirin', halfLifeHours: 72, minGapHours: 48, severity: 'danger', description: 'Warfarin has long half-life; Aspirin increases bleeding risk significantly', recommendation: 'Wait at least 48 hours between doses; consult doctor' },
+    { drug1: 'Metformin', drug2: 'Alcohol', halfLifeHours: 6, minGapHours: 24, severity: 'danger', description: 'Metformin + alcohol increases risk of lactic acidosis', recommendation: 'Avoid alcohol completely while on Metformin' },
+    { drug1: 'Tramadol', drug2: 'Fluoxetine', halfLifeHours: 72, minGapHours: 72, severity: 'danger', description: 'Fluoxetine has very long half-life; risk of serotonin syndrome', recommendation: 'Use extreme caution; monitor for serotonin syndrome symptoms' },
+    { drug1: 'Lisinopril', drug2: 'Potassium', halfLifeHours: 12, minGapHours: 24, severity: 'caution', description: 'Risk of high potassium levels persists', recommendation: 'Monitor potassium intake; limit high-potassium foods' },
+    { drug1: 'Simvastatin', drug2: 'Grapefruit', halfLifeHours: 6, minGapHours: 24, severity: 'danger', description: 'Grapefruit effect persists 24+ hours', recommendation: 'Avoid grapefruit entirely while on Simvastatin' },
+  ];
+  
+  return temporalInteractions.find(int => 
+    (int.drug1.includes(drug1) || int.drug1.includes(drug2)) &&
+    (int.drug2.includes(drug2) || int.drug2.includes(drug1))
+  );
+}
+
+export function getHalfLifeWarning(drugName: string): string | null {
+  const drug = findExtendedDrug(drugName);
+  if (!drug) return null;
+  
+  const halfLives = [24, 48, 72];
+  const descriptions: { [key: number]: string } = {
+    24: 'long-acting',
+    48: 'very long-acting',
+    72: 'extremely long-acting',
+  };
+  
+  for (const hl of halfLives) {
+    if (drug.halfLifeHours >= hl) {
+      return `${drug.name} is ${descriptions[hl]} (half-life: ${drug.halfLifeHours} hours). Residual effects may last ${Math.round(drug.halfLifeHours / 24 * 3)} days.`;
+    }
+  }
+  return null;
+}
+
+export interface ScheduleEntry {
+  day: string;
+  drugs: { name: string; dosage: string; times: string[]; withFood: string }[];
+}
+
+export function analyzeScheduleInteractions(schedule: ScheduleEntry[]): {
+  sameDayInteractions: DrugInteraction[];
+  temporalInteractions: TemporalInteraction[];
+  foodInteractions: { drug: string; interactions: FoodInteraction[] }[];
+  halfLifeWarnings: { drug: string; warning: string }[];
+} {
+  const allDrugs = schedule.flatMap(entry => entry.drugs.map(d => d.name));
+  
+  // Same-day interactions
+  const sameDayInteractions: DrugInteraction[] = [];
+  const drugsToCheck = [...new Set(allDrugs)];
+  const result = checkDrugInteractions(drugsToCheck, []);
+  sameDayInteractions.push(...result.interactions);
+  
+  // Food interactions
+  const foodInteractions = checkFoodInteractions(allDrugs);
+  
+  // Temporal interactions
+  const scheduleForTemporal = schedule.map(entry => ({
+    day: entry.day,
+    drugs: entry.drugs.map(d => d.name),
+  }));
+  const temporalInteractions = checkTemporalInteractions(scheduleForTemporal);
+  
+  // Half-life warnings
+  const halfLifeWarnings: { drug: string; warning: string }[] = [];
+  const seenDrugs = new Set<string>();
+  allDrugs.forEach(drug => {
+    if (!seenDrugs.has(drug)) {
+      seenDrugs.add(drug);
+      const warning = getHalfLifeWarning(drug);
+      if (warning) {
+        halfLifeWarnings.push({ drug, warning });
+      }
+    }
+  });
+  
+  return {
+    sameDayInteractions,
+    temporalInteractions,
+    foodInteractions,
+    halfLifeWarnings,
+  };
+}
