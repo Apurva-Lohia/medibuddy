@@ -102,12 +102,24 @@ export default function Chatbot() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf'];
+    if (!validTypes.includes(file.type)) {
+      addMessage({
+        role: 'bot',
+        content: 'Sorry, I can only process images (JPG, PNG, GIF, WebP) and PDF files. Please upload a valid file.',
+      });
+      return;
+    }
+
+    const isPdf = file.type === 'application/pdf';
+    const fileType = isPdf ? 'PDF document' : 'image';
+
     setIsProcessingOCR(true);
     setShowImageUpload(false);
 
     addMessage({
       role: 'user',
-      content: `I'm uploading a prescription image: ${file.name}`,
+      content: `I'm uploading a prescription ${fileType}: ${file.name}`,
     });
 
     try {
@@ -130,7 +142,7 @@ export default function Chatbot() {
     } catch (err) {
       addMessage({
         role: 'bot',
-        content: 'Sorry, I had trouble processing that image. Could you try a clearer photo?',
+        content: 'Sorry, I had trouble processing that file. Could you try a clearer version?',
       });
       setIsProcessingOCR(false);
     }
@@ -292,7 +304,7 @@ export default function Chatbot() {
               <Pill size={64} />
             </div>
             <h2>Welcome to Drug Interaction Checker</h2>
-            <p>Enter medication names separated by commas, or upload a prescription image to get started.</p>
+            <p>Enter medication names separated by commas, or upload a prescription (image or PDF) to get started.</p>
             
             <div className={styles.quickActions}>
               <h3>Quick Examples:</h3>
@@ -453,7 +465,7 @@ export default function Chatbot() {
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/*"
+              accept="image/jpeg,image/png,image/gif,image/webp,application/pdf"
               capture="environment"
               onChange={handleImageUpload}
               className={styles.hiddenInput}
@@ -466,7 +478,7 @@ export default function Chatbot() {
           
           {isProcessingOCR && (
             <p className={styles.processingText}>
-              Processing prescription image...
+              Processing prescription...
             </p>
           )}
         </form>
