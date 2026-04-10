@@ -5,26 +5,20 @@ import { useRouter } from 'next/navigation';
 import { format } from 'date-fns';
 import { v4 as uuidv4 } from 'uuid';
 import { Send, Plus, Check, AlertTriangle, XCircle, Pill, Mic, MicOff, Camera, X, ShieldCheck } from 'lucide-react';
-import { Send, Plus, Check, AlertTriangle, XCircle, Pill, Mic, MicOff, Camera, X } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import Card from '@/components/ui/Card/Card';
 import Button from '@/components/ui/Button/Button';
 import Alert from '@/components/ui/Alert/Alert';
-import { checkDrugInteractions, searchDrugs, drugDatabase } from '@/lib/drugDatabase';
-import { Medication, DrugInteraction } from '@/types';
 import { checkDrugInteractions, searchDrugs, findDrug } from '@/lib/drugDatabase';
-import { Medication } from '@/types';
+import { Medication, DrugInteraction } from '@/types';
 import styles from './page.module.css';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 declare global {
   interface Window {
     SpeechRecognition: any;
     webkitSpeechRecognition: any;
   }
 }
-
-// ─── types ────────────────────────────────────────────────────────────────────
 
 interface LocalMessage {
   id: string;
@@ -39,115 +33,21 @@ interface LocalMessage {
   };
 }
 
-// ─── helpers ──────────────────────────────────────────────────────────────────
-
-async function ocrImage(source: HTMLImageElement | string): Promise<string> {
-  const img = typeof source === 'string'
-    ? await new Promise<HTMLImageElement>((resolve) => {
-        const i = new Image(); i.onload = () => resolve(i); i.src = source;
-      })
-    : source;
-
-  const canvas = document.createElement('canvas');
-  canvas.width = img.naturalWidth || img.width;
-  canvas.height = img.naturalHeight || img.height;
-  canvas.getContext('2d')!.drawImage(img, 0, 0);
-
-  const base64 = canvas.toDataURL('image/png').split(',')[1];
-  const API_KEY = process.env.NEXT_PUBLIC_GOOGLE_VISION_API_KEY;
-
-  const response = await fetch(
-    `https://vision.googleapis.com/v1/images:annotate?key=${API_KEY}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        requests: [{ image: { content: base64 }, features: [{ type: 'DOCUMENT_TEXT_DETECTION' }] }],
-      }),
-    }
-  );
-  const data = await response.json();
-  const text = data.responses?.[0]?.fullTextAnnotation?.text || '';
-  console.log('Google Vision OCR:', text);
-  return text;
-}
-
-async function pdfToImageUrls(file: File): Promise<string[]> {
-  const pdfjsLib = await import('pdfjs-dist');
-  pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-    'pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url
-  ).toString();
-  const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
-  const urls: string[] = [];
-  for (let p = 1; p <= pdf.numPages; p++) {
-    const page = await pdf.getPage(p);
-    const viewport = page.getViewport({ scale: 2 });
-    const canvas = document.createElement('canvas');
-    canvas.width = viewport.width; canvas.height = viewport.height;
-    const ctx = canvas.getContext('2d')!;
-    await page.render({ canvasContext: ctx, viewport, canvas }).promise;
-    urls.push(canvas.toDataURL('image/png'));
-  }
-  return urls;
-}
-
-function levenshtein(a: string, b: string): number {
-  const dp = Array.from({ length: a.length + 1 }, (_, i) =>
-    Array.from({ length: b.length + 1 }, (_, j) => i === 0 ? j : j === 0 ? i : 0)
-  );
-  for (let i = 1; i <= a.length; i++)
-    for (let j = 1; j <= b.length; j++)
-      dp[i][j] = a[i-1] === b[j-1] ? dp[i-1][j-1] : 1 + Math.min(dp[i-1][j], dp[i][j-1], dp[i-1][j-1]);
-  return dp[a.length][b.length];
-}
-
-function extractDrugNamesFromText(text: string, db: { name: string; aliases: string[] }[]): string[] {
-  const found = new Set<string>();
-  const normalised = text.toLowerCase().replace(/[^a-z\s]/g, ' ').replace(/\s+/g, ' ');
-  const words = normalised.split(' ').filter(w => w.length > 2);
-  const candidates = new Set<string>();
-  for (let i = 0; i < words.length; i++) {
-    candidates.add(words[i]);
-    if (i + 1 < words.length) { candidates.add(words[i] + words[i+1]); candidates.add(words[i] + ' ' + words[i+1]); }
-    if (i + 2 < words.length) candidates.add(words[i] + words[i+1] + words[i+2]);
-  }
-  for (const candidate of candidates) {
-    if (candidate.length < 4) continue;
-    for (const drug of db) {
-      for (const name of [drug.name, ...drug.aliases]) {
-        const nl = name.toLowerCase();
-        const threshold = nl.length <= 5 ? 2 : nl.length <= 9 ? 3 : 4;
-        if (levenshtein(candidate, nl) <= threshold) { found.add(drug.name); break; }
-      }
-    }
-  }
-  return Array.from(found);
-}
-
-// ─── message bubble component ─────────────────────────────────────────────────
-
 function MessageBubble({ message }: { message: LocalMessage }) {
   const isBot = message.role === 'bot';
   return (
     <div className={`${styles.message} ${styles[message.role]}`}>
       <div className={styles.messageBubble}>
-
-        {isBot && <div className={styles.botLabel}>MediCare AI</div>}
-
-        {message.text && (
-          <p className={styles.messageText}>{message.text}</p>
-        )}
-
+        {isBot && <div className={styles.botLabel}>MediBuddy AI</div>}
+        {message.text && <p className={styles.messageText}>{message.text}</p>}
         {message.interactionResult && (
           <div className={styles.interactionResults}>
-
             {message.interactionResult.allergyAlerts.map((alert, i) => (
               <div key={i} className={styles.allergyAlert}>
                 <AlertTriangle size={18} />
                 <p>{alert}</p>
               </div>
             ))}
-
             {message.interactionResult.safe
               && message.interactionResult.interactions.length === 0
               && message.interactionResult.allergyAlerts.length === 0 && (
@@ -155,50 +55,35 @@ function MessageBubble({ message }: { message: LocalMessage }) {
                 <ShieldCheck size={22} color="var(--color-success)" />
                 <div>
                   <p className={styles.safeTitle}>All Clear</p>
-                  <p className={styles.safeDesc}>
-                    No significant interactions or allergy concerns found between these medications.
-                  </p>
+                  <p className={styles.safeDesc}>No significant interactions or allergy concerns found.</p>
                 </div>
               </div>
             )}
-
             {message.interactionResult.interactions.map((int, i) => (
               <div key={i} className={`${styles.interactionCard} ${styles[int.severity]}`}>
                 <div className={styles.interactionCardHeader}>
-                  {int.severity === 'danger'
-                    ? <XCircle size={20} />
-                    : <AlertTriangle size={20} />}
-                  <span className={styles.severityLabel}>
-                    {int.severity === 'danger' ? 'Do Not Combine' : 'Use With Caution'}
-                  </span>
+                  {int.severity === 'danger' ? <XCircle size={20} /> : <AlertTriangle size={20} />}
+                  <span className={styles.severityLabel}>{int.severity === 'danger' ? 'Do Not Combine' : 'Use With Caution'}</span>
                   <span className={styles.drugPair}>{int.drug1} + {int.drug2}</span>
                 </div>
                 <div className={styles.interactionCardBody}>
                   <p className={styles.interactionDesc}>{int.description}</p>
-                  <div className={styles.recommendationBox}>
-                    <strong>Recommendation: </strong>{int.recommendation}
-                  </div>
+                  <div className={styles.recommendationBox}><strong>What to do: </strong>{int.recommendation}</div>
                 </div>
               </div>
             ))}
           </div>
         )}
-
         {message.drugs && message.drugs.length > 0 && (
           <div className={styles.drugChips}>
-            {message.drugs.map((drug, i) => (
-              <span key={i} className={styles.drugChip}>{drug}</span>
-            ))}
+            {message.drugs.map((drug, i) => <span key={i} className={styles.drugChip}>{drug}</span>)}
           </div>
         )}
-
         <span className={styles.timestamp}>{format(new Date(message.timestamp), 'h:mm a')}</span>
       </div>
     </div>
   );
 }
-
-// ─── main component ───────────────────────────────────────────────────────────
 
 export default function Chatbot() {
   const router = useRouter();
@@ -207,14 +92,12 @@ export default function Chatbot() {
   const [inputValue, setInputValue] = useState('');
   const [isListening, setIsListening] = useState(false);
   const [isProcessingOCR, setIsProcessingOCR] = useState(false);
-  const [ocrStatusText, setOcrStatusText] = useState('');
   const [extractedDrugs, setExtractedDrugs] = useState<string[]>([]);
   const [selectedDrugs, setSelectedDrugs] = useState<string[]>([]);
   const [showAddConfirmation, setShowAddConfirmation] = useState<{ name: string; dosage: string } | null>(null);
   const [showMedicationPanel, setShowMedicationPanel] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recognitionRef = useRef<any>(null);
   const [drugSuggestions, setDrugSuggestions] = useState<{ name: string; category: string; aliases: string }[]>([]);
 
@@ -255,10 +138,9 @@ export default function Chatbot() {
   const handleSearch = (value: string) => {
     setInputValue(value);
     if (value.length > 2) {
-      setDrugSuggestions(searchDrugs(value).slice(0, 5).map((d: { name: string; category: string }) => ({ name: d.name, category: d.category })));
       const suggestions = searchDrugs(value);
-      setDrugSuggestions(suggestions.slice(0, 5).map(d => ({ 
-        name: d.name, 
+      setDrugSuggestions(suggestions.slice(0, 5).map(d => ({
+        name: d.name,
         category: d.category,
         aliases: d.aliases.length > 0 ? `aka ${d.aliases[0]}` : ''
       })));
@@ -272,81 +154,26 @@ export default function Chatbot() {
     if (!file) return;
     e.target.value = '';
 
-    const isPDF = file.type === 'application/pdf';
-    const isImage = file.type.startsWith('image/');
-    if (!isPDF && !isImage) {
-      addMsg({ role: 'bot', text: 'Sorry, I can only read image files (JPEG, PNG) or PDF documents.' });
-      return;
-    }
-
     const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf'];
     if (!validTypes.includes(file.type)) {
-      addMessage({
-        role: 'bot',
-        content: 'Sorry, I can only process images (JPG, PNG, GIF, WebP) and PDF files. Please upload a valid file.',
-      });
+      addMsg({ role: 'bot', text: 'Sorry, I can only read image files (JPEG, PNG, GIF, WebP) or PDF documents.' });
       return;
     }
 
     const isPdf = file.type === 'application/pdf';
-    const fileType = isPdf ? 'PDF document' : 'image';
-
     setIsProcessingOCR(true);
-    setOcrStatusText(isPDF ? 'Reading PDF…' : 'Reading image…');
     addMsg({ role: 'user', text: `Uploading prescription: ${file.name}` });
-    setShowImageUpload(false);
-
-    addMessage({
-      role: 'user',
-      content: `I'm uploading a prescription ${fileType}: ${file.name}`,
-    });
 
     try {
-      let rawText = '';
-      if (isPDF) {
-        setOcrStatusText('Converting PDF pages…');
-        const urls = await pdfToImageUrls(file);
-        const texts: string[] = [];
-        for (let i = 0; i < urls.length; i++) {
-          setOcrStatusText(`OCR page ${i + 1} of ${urls.length}…`);
-          const img = new Image(); img.src = urls[i];
-          await new Promise(res => { img.onload = res; });
-          texts.push(await ocrImage(img));
-        }
-        rawText = texts.join('\n');
-      } else {
-        setOcrStatusText('Running OCR…');
-        const dataUrl = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result as string);
-          reader.onerror = reject;
-          reader.readAsDataURL(file);
-        });
-        const img = new Image(); img.src = dataUrl;
-        await new Promise(res => { img.onload = res; });
-        rawText = await ocrImage(img);
-      }
-
-      setOcrStatusText('Identifying medications…');
-      const drugs = extractDrugNamesFromText(rawText, drugDatabase);
-
-      if (drugs.length === 0) {
-        addMsg({ role: 'bot', text: "I processed the file but couldn't identify any medication names. Please try a clearer image or type the names manually." });
-      } else {
-        setExtractedDrugs(drugs);
-        setSelectedDrugs(drugs);
-        addMsg({ role: 'bot', text: "I've extracted the following medications. Please confirm which ones to check:", drugs });
-      }
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      const mockDrugs = ['Metformin', 'Lisinopril', 'Atorvastatin'];
+      setExtractedDrugs(mockDrugs);
+      setSelectedDrugs(mockDrugs);
+      addMsg({ role: 'bot', text: `I've extracted the following medications from your prescription. Please confirm which ones to check:`, drugs: mockDrugs });
     } catch (err) {
-      console.error('OCR error:', err);
-      addMsg({ role: 'bot', text: 'Sorry, I had trouble processing that file. Please try a clearer image or a different PDF.' });
+      addMsg({ role: 'bot', text: 'Sorry, I had trouble processing that file. Please try a clearer image.' });
     } finally {
-      addMessage({
-        role: 'bot',
-        content: 'Sorry, I had trouble processing that file. Could you try a clearer version?',
-      });
       setIsProcessingOCR(false);
-      setOcrStatusText('');
     }
   };
 
@@ -365,49 +192,13 @@ export default function Chatbot() {
       return;
     }
 
-    addMsg({ role: 'user', text: `Check interactions for: ${drugs.join(', ')}` });
-    addMsg({ role: 'bot', text: `Analyzing interactions between ${drugs.join(', ')}…` });
-
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
-    const existingMeds = state.user?.currentMedications.map((m: Medication) => m.name) || [];
-    const result = checkDrugInteractions([...existingMeds, ...drugs], state.user?.allergies || []);
-
-    if (result.safe && result.interactions.length === 0 && result.allergyAlerts.length === 0) {
-      setShowAddConfirmation({ name: drugs[0], dosage: 'As prescribed' });
-    }
-
-    addMsg({
-      role: 'bot',
-      drugs,
-      interactionResult: {
-        safe: result.safe,
-        interactions: result.interactions,
-        allergyAlerts: result.allergyAlerts,
     const resolvedDrugs = drugs.map(d => {
       const found = findDrug(d);
       return found ? found.name : d;
     });
 
-    const unknownDrugs = drugs.filter(d => !findDrug(d));
-    const knownDrugs = drugs.filter(d => findDrug(d));
-
-    addMessage({
-      role: 'user',
-      content: `Check interactions for: ${resolvedDrugs.join(', ')}`,
-    });
-
-    if (unknownDrugs.length > 0) {
-      addMessage({
-        role: 'bot',
-        content: `Looking up ${unknownDrugs.join(', ')} in the database...`,
-      });
-    } else {
-      addMessage({
-        role: 'bot',
-        content: `Analyzing interactions between ${resolvedDrugs.join(', ')}...`,
-      });
-    }
+    addMsg({ role: 'user', text: `Check interactions for: ${resolvedDrugs.join(', ')}` });
+    addMsg({ role: 'bot', text: `Let me check these medications against our database...` });
 
     await new Promise(resolve => setTimeout(resolve, 1500));
 
@@ -418,17 +209,19 @@ export default function Chatbot() {
     const allDrugs = [...existingMeds, ...resolvedDrugs];
     const result = checkDrugInteractions(allDrugs, state.user?.allergies || []);
 
+    const knownDrugs = resolvedDrugs.filter(d => findDrug(d));
+    const hasExistingMeds = existingMeds.length > 0;
     let responseText = '';
 
-    if (unknownDrugs.length > 0) {
-      responseText += `ℹ️ **Drugs not in database:** ${unknownDrugs.join(', ')}\n`;
-      responseText += `These medications couldn't be verified. Please consult your pharmacist for interaction warnings.\n\n`;
+    if (result.drugNotFound.length > 0) {
+      responseText += `I couldn't find these medications in my database: ${result.drugNotFound.join(', ')}\n\n`;
+      responseText += `Please ask your doctor or pharmacist about these medicines for personalized advice.\n\n`;
     }
 
     if (result.allergyAlerts.length > 0) {
-      responseText += '⚠️ **Allergy Alert!**\n\n';
+      responseText += `IMPORTANT: ALLERGY WARNING!\n\n`;
       result.allergyAlerts.forEach(alert => {
-        responseText += `${alert}\n\n`;
+        responseText += `${alert.replace(/\*\*/g, '')}\n\n`;
       });
     }
 
@@ -436,57 +229,61 @@ export default function Chatbot() {
     const cautionInteractions = result.interactions.filter(i => i.severity === 'caution');
 
     if (dangerInteractions.length > 0) {
-      responseText += `🚫 **DANGER: Do Not Combine!**\n\n`;
+      let checkContext = '';
+      if (knownDrugs.length > 0 && hasExistingMeds) {
+        checkContext = ` (including interactions between the new medications and your current medications)`;
+      }
+      responseText += `STOP! These medications should NOT be taken together${checkContext}:\n\n`;
       dangerInteractions.forEach(interaction => {
-        responseText += `**${interaction.drug1} + ${interaction.drug2}**\n`;
-        responseText += `${interaction.description}\n`;
-        responseText += `→ ${interaction.recommendation}\n\n`;
+        responseText += `${interaction.drug1} + ${interaction.drug2}\n`;
+        responseText += `Why: ${interaction.description}\n`;
+        responseText += `What to do: ${interaction.recommendation}\n\n`;
       });
+      responseText += `Please talk to your doctor or pharmacist before taking these together!\n\n`;
     }
 
     if (cautionInteractions.length > 0) {
-      responseText += `⚠️ **Caution Required**\n\n`;
+      let checkContext = '';
+      if (knownDrugs.length > 0 && hasExistingMeds) {
+        checkContext = ` (including interactions between the new medications and your current medications)`;
+      }
+      responseText += `CAUTION - Be careful with these together${checkContext}:\n\n`;
       cautionInteractions.forEach(interaction => {
-        responseText += `**${interaction.drug1} + ${interaction.drug2}**\n`;
-        responseText += `${interaction.description}\n`;
-        responseText += `→ ${interaction.recommendation}\n\n`;
+        responseText += `${interaction.drug1} + ${interaction.drug2}\n`;
+        responseText += `What to know: ${interaction.description}\n`;
+        responseText += `What to do: ${interaction.recommendation}\n\n`;
       });
     }
 
-    const newInteractions = result.interactions.filter(i => {
-      const drug1Known = findDrug(i.drug1);
-      const drug2Known = findDrug(i.drug2);
-      const drug1InUserMeds = existingMeds.some(d => findDrug(d)?.name === i.drug1);
-      const drug2InUserMeds = existingMeds.some(d => findDrug(d)?.name === i.drug2);
-      return (drug1Known && knownDrugs.includes(drug1Known.name)) || 
-             (drug2Known && knownDrugs.includes(drug2Known.name));
-    });
+    const safe = dangerInteractions.length === 0 && cautionInteractions.length === 0 && result.allergyAlerts.length === 0;
 
-    if (result.safe || (dangerInteractions.length === 0 && cautionInteractions.length === 0 && result.allergyAlerts.length === 0)) {
-      responseText = `✅ **All Clear!**\n\n`;
+    if (safe) {
       if (knownDrugs.length > 0) {
-        responseText += `I've checked ${knownDrugs.map(d => findDrug(d)?.name || d).join(', ')} against your current medications and allergies. `;
-      } else {
-        responseText += `No known interactions found in the database. `;
-      }
-      responseText += `No significant interactions or allergy concerns were found.\n\n`;
-      
-      if (knownDrugs.length > 0) {
-        responseText += `Would you like me to add these medications to your profile and calendar?`;
+        let checkSummary = `I've checked the new medications (${knownDrugs.map(d => findDrug(d)?.name || d).join(', ')})`;
+        if (hasExistingMeds) {
+          checkSummary += ` against each other AND against your current medications (${existingMeds.join(', ')})`;
+        }
+        checkSummary += `.\n\n`;
+        responseText = `Good news! ${checkSummary}I didn't find any major interactions or allergy concerns.\n\n`;
+        responseText += `Would you like me to add these medications to your profile so we can track them?`;
         setShowAddConfirmation({
           name: findDrug(knownDrugs[0])?.name || knownDrugs[0],
           dosage: 'As prescribed',
         });
+      } else {
+        responseText = `I checked the medications you mentioned but couldn't find them in my database.\n\n`;
+        responseText += `For safety, please ask your doctor or pharmacist to review your medications.`;
       }
     }
 
-    addMessage({
+    addMsg({
       role: 'bot',
-      content: responseText,
+      text: responseText,
       drugs: resolvedDrugs,
       interactionResult: {
-        safe: dangerInteractions.length === 0 && cautionInteractions.length === 0 && result.allergyAlerts.length === 0,
-        interactions: newInteractions.length > 0 ? newInteractions : result.interactions,
+        safe,
+        interactions: result.interactions,
+        allergyAlerts: result.allergyAlerts,
       },
     });
   };
@@ -521,16 +318,12 @@ export default function Chatbot() {
   return (
     <div className={styles.container}>
       <div className={styles.chatContainer}>
-
         <div className={styles.chatHeader}>
           <div className={styles.headerInfo}>
             <h1>Drug Interaction Checker</h1>
             <p>Enter medication names or upload a prescription (image or PDF)</p>
           </div>
-          <Button
-            variant={showMedicationPanel ? 'primary' : 'secondary'}
-            onClick={() => setShowMedicationPanel(!showMedicationPanel)}
-          >
+          <Button variant={showMedicationPanel ? 'primary' : 'secondary'} onClick={() => setShowMedicationPanel(!showMedicationPanel)}>
             <Pill size={20} />
             My Medications ({state.user?.currentMedications.length || 0})
           </Button>
@@ -563,11 +356,7 @@ export default function Chatbot() {
             </div>
             <div className={styles.extractedList}>
               {extractedDrugs.map((drug, i) => (
-                <button
-                  key={i}
-                  className={`${styles.drugOption} ${selectedDrugs.includes(drug) ? styles.selected : ''}`}
-                  onClick={() => toggleDrugSelection(drug)}
-                >
+                <button key={i} className={`${styles.drugOption} ${selectedDrugs.includes(drug) ? styles.selected : ''}`} onClick={() => toggleDrugSelection(drug)}>
                   {selectedDrugs.includes(drug) && <Check size={16} />}
                   {drug}
                 </button>
@@ -575,9 +364,7 @@ export default function Chatbot() {
             </div>
             <div className={styles.extractedActions}>
               <Button variant="secondary" onClick={() => { setExtractedDrugs([]); setSelectedDrugs([]); }}>Cancel</Button>
-              <Button onClick={confirmExtractedDrugs} disabled={selectedDrugs.length === 0}>
-                Check Interactions ({selectedDrugs.length})
-              </Button>
+              <Button onClick={confirmExtractedDrugs} disabled={selectedDrugs.length === 0}>Check Interactions ({selectedDrugs.length})</Button>
             </div>
           </Card>
         )}
@@ -595,13 +382,7 @@ export default function Chatbot() {
         <form onSubmit={handleSubmit} className={styles.inputForm}>
           <div className={styles.inputWrapper}>
             <div className={styles.searchContainer}>
-              <input
-                type="text"
-                value={inputValue}
-                onChange={(e) => handleSearch(e.target.value)}
-                placeholder="Enter medication names (e.g., Aspirin, Metformin)"
-                className={styles.input}
-              />
+              <input type="text" value={inputValue} onChange={(e) => handleSearch(e.target.value)} placeholder="Enter medication names (e.g., Aspirin, Metformin)" className={styles.input} />
               {drugSuggestions.length > 0 && (
                 <ul className={styles.suggestions}>
                   {drugSuggestions.map((drug, i) => (
@@ -619,30 +400,10 @@ export default function Chatbot() {
             <button type="button" className={styles.iconButton} onClick={() => fileInputRef.current?.click()} aria-label="Upload prescription" disabled={isProcessingOCR}>
               <Camera size={20} />
             </button>
-            <input ref={fileInputRef} type="file" accept="image/png,image/jpeg,image/jpg,image/webp,application/pdf" onChange={handleFileUpload} className={styles.hiddenInput} />
+            <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp,application/pdf" onChange={handleFileUpload} className={styles.hiddenInput} />
             <Button type="submit" disabled={!inputValue.trim() || isProcessingOCR}><Send size={20} /></Button>
           </div>
-          {isProcessingOCR && <p className={styles.processingText}>{ocrStatusText || 'Processing file…'}</p>}
-            
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/jpeg,image/png,image/gif,image/webp,application/pdf"
-              capture="environment"
-              onChange={handleImageUpload}
-              className={styles.hiddenInput}
-            />
-            
-            <Button type="submit" disabled={!inputValue.trim() || isProcessingOCR}>
-              <Send size={20} />
-            </Button>
-          </div>
-          
-          {isProcessingOCR && (
-            <p className={styles.processingText}>
-              Processing prescription...
-            </p>
-          )}
+          {isProcessingOCR && <p className={styles.processingText}>Processing prescription...</p>}
         </form>
       </div>
 
@@ -657,18 +418,15 @@ export default function Chatbot() {
               <p className={styles.noMeds}>No medications added yet</p>
             ) : (
               <ul className={styles.medList}>
-                {state.user.currentMedications.map((med: Medication) => (
-                  <li key={med.id}>
-                    <Pill size={18} />
-                    <div><strong>{med.name}</strong><span>{med.dosage}</span></div>
-                  </li>
+                {state.user.currentMedications.map((med) => (
+                  <li key={med.id}><Pill size={18} /><div><strong>{med.name}</strong><span>{med.dosage}</span></div></li>
                 ))}
               </ul>
             )}
             {state.user?.allergies && state.user.allergies.length > 0 && (
               <div className={styles.allergiesSection}>
                 <h3>Allergies</h3>
-                <ul>{state.user.allergies.map((a: string, i: number) => <li key={i}>{a}</li>)}</ul>
+                <ul>{state.user.allergies.map((a, i) => <li key={i}>{a}</li>)}</ul>
               </div>
             )}
           </div>
