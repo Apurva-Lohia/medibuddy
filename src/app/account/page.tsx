@@ -27,14 +27,15 @@ const ethnicities = [
 
 export default function Account() {
   const router = useRouter();
-  const { state, updateUser, addMedication, removeMedication, logout } = useApp();
+  const { state, updateUser, addMedication, addPastMedication, removeMedication, removePastMedication, logout } = useApp();
   const [isEditing, setIsEditing] = useState(false);
   const [editSection, setEditSection] = useState<string | null>(null);
   const [showAddMedication, setShowAddMedication] = useState(false);
   const [showAddCondition, setShowAddCondition] = useState(false);
   const [showAddAllergy, setShowAddAllergy] = useState(false);
   const [newItem, setNewItem] = useState('');
-  const [newMedication, setNewMedication] = useState({ name: '', dosage: '', frequency: 'daily', times: ['morning'] as ('morning' | 'afternoon' | 'evening' | 'night')[] });
+  const [conditionType, setConditionType] = useState<'current' | 'past'>('current');
+  const [newMedication, setNewMedication] = useState({ name: '', dosage: '', frequency: 'daily', times: ['morning'] as ('morning' | 'afternoon' | 'evening' | 'night')[], isPast: false });
   const [showSuccess, setShowSuccess] = useState(false);
 
   const [formData, setFormData] = useState({
@@ -129,15 +130,24 @@ export default function Account() {
         frequency: newMedication.frequency as Medication['frequency'],
         times: newMedication.times,
         startDate: new Date().toISOString(),
+        endDate: newMedication.isPast ? new Date().toISOString() : undefined,
       };
-      addMedication(medication);
-      setNewMedication({ name: '', dosage: '', frequency: 'daily', times: ['morning'] });
+      if (newMedication.isPast) {
+        addPastMedication(medication);
+      } else {
+        addMedication(medication);
+      }
+      setNewMedication({ name: '', dosage: '', frequency: 'daily', times: ['morning'], isPast: false });
       setShowAddMedication(false);
     }
   };
 
   const handleRemoveMedication = (id: string) => {
     removeMedication(id);
+  };
+
+  const handleRemovePastMedication = (id: string) => {
+    removePastMedication(id);
   };
 
   const handleLogout = () => {
@@ -282,14 +292,16 @@ export default function Account() {
                 <Heart size={20} />
                 <h2>Health Conditions</h2>
               </div>
-              <Button variant="ghost" onClick={() => setShowAddCondition(true)}>
-                <Plus size={18} />
-                Add
-              </Button>
             </div>
 
             <div className={styles.tagSection}>
-              <h3>Current Conditions</h3>
+              <div className={styles.tagSectionHeader}>
+                <h3>Current Conditions</h3>
+                <button className={styles.addSmallButton} onClick={() => { setConditionType('current'); setShowAddCondition(true); }}>
+                  <Plus size={14} />
+                  Add
+                </button>
+              </div>
               {state.user.currentConditions.length === 0 ? (
                 <p className={styles.emptyText}>No conditions listed</p>
               ) : (
@@ -307,10 +319,40 @@ export default function Account() {
             </div>
 
             <div className={styles.tagSection}>
-              <h3>
-                <AlertCircle size={16} />
-                Allergies
-              </h3>
+              <div className={styles.tagSectionHeader}>
+                <h3>Past Conditions</h3>
+                <button className={styles.addSmallButton} onClick={() => { setConditionType('past'); setShowAddCondition(true); }}>
+                  <Plus size={14} />
+                  Add
+                </button>
+              </div>
+              {state.user.pastConditions.length === 0 ? (
+                <p className={styles.emptyText}>No past conditions listed</p>
+              ) : (
+                <div className={styles.tagList}>
+                  {state.user.pastConditions.map((condition, index) => (
+                    <span key={index} className={`${styles.tag} ${styles.pastTag}`}>
+                      {condition}
+                      <button onClick={() => handleRemoveCondition('past', index)}>
+                        <X size={14} />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className={styles.tagSection}>
+              <div className={styles.tagSectionHeader}>
+                <h3>
+                  <AlertCircle size={16} />
+                  Allergies
+                </h3>
+                <button className={styles.addSmallButton} onClick={() => setShowAddAllergy(true)}>
+                  <Plus size={14} />
+                  Add
+                </button>
+              </div>
               {state.user.allergies.length === 0 ? (
                 <p className={styles.emptyText}>No allergies listed</p>
               ) : (
@@ -334,7 +376,7 @@ export default function Account() {
                 <Pill size={20} />
                 <h2>Current Medications</h2>
               </div>
-              <Button variant="ghost" onClick={() => setShowAddMedication(true)}>
+              <Button variant="ghost" onClick={() => { setNewMedication(prev => ({ ...prev, isPast: false })); setShowAddMedication(true); }}>
                 <Plus size={18} />
                 Add
               </Button>
@@ -359,6 +401,48 @@ export default function Account() {
                     <button
                       className={styles.removeButton}
                       onClick={() => handleRemoveMedication(med.id)}
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+
+          <Card className={styles.section}>
+            <div className={styles.sectionHeader}>
+              <div className={styles.sectionTitle}>
+                <Pill size={20} />
+                <h2>Past Medications</h2>
+              </div>
+              <Button variant="ghost" onClick={() => { setNewMedication(prev => ({ ...prev, isPast: true })); setShowAddMedication(true); }}>
+                <Plus size={18} />
+                Add
+              </Button>
+            </div>
+
+            {state.user.pastMedications.length === 0 ? (
+              <div className={styles.emptyState}>
+                <Pill size={48} />
+                <p>No past medications listed</p>
+              </div>
+            ) : (
+              <div className={styles.medicationList}>
+                {state.user.pastMedications.map((med) => (
+                  <div key={med.id} className={`${styles.medicationItem} ${styles.pastMedication}`}>
+                    <div className={styles.medicationInfo}>
+                      <h4>{med.name}</h4>
+                      <p>{med.dosage} - {med.frequency.replace('_', ' ')}</p>
+                      {med.endDate && (
+                        <p className={styles.endDate}>
+                          Ended {format(new Date(med.endDate), 'MMM d, yyyy')}
+                        </p>
+                      )}
+                    </div>
+                    <button
+                      className={styles.removeButton}
+                      onClick={() => handleRemovePastMedication(med.id)}
                     >
                       <Trash2 size={18} />
                     </button>
@@ -403,11 +487,27 @@ export default function Account() {
                 value={newItem}
                 onChange={(e) => setNewItem(e.target.value)}
               />
+              <div className={styles.toggleGroup}>
+                <button
+                  type="button"
+                  className={`${styles.toggleButton} ${conditionType === 'current' ? styles.toggleActive : ''}`}
+                  onClick={() => setConditionType('current')}
+                >
+                  Current
+                </button>
+                <button
+                  type="button"
+                  className={`${styles.toggleButton} ${conditionType === 'past' ? styles.toggleActive : ''}`}
+                  onClick={() => setConditionType('past')}
+                >
+                  Past
+                </button>
+              </div>
               <div className={styles.modalActions}>
                 <Button variant="secondary" onClick={() => setShowAddCondition(false)}>
                   Cancel
                 </Button>
-                <Button onClick={() => handleAddCondition('current')}>
+                <Button onClick={() => handleAddCondition(conditionType)}>
                   Add Condition
                 </Button>
               </div>
@@ -478,6 +578,22 @@ export default function Account() {
                 value={newMedication.frequency}
                 onChange={(e) => setNewMedication(prev => ({ ...prev, frequency: e.target.value as Medication['frequency'] }))}
               />
+              <div className={styles.toggleGroup}>
+                <button
+                  type="button"
+                  className={`${styles.toggleButton} ${!newMedication.isPast ? styles.toggleActive : ''}`}
+                  onClick={() => setNewMedication(prev => ({ ...prev, isPast: false }))}
+                >
+                  Current
+                </button>
+                <button
+                  type="button"
+                  className={`${styles.toggleButton} ${newMedication.isPast ? styles.toggleActive : ''}`}
+                  onClick={() => setNewMedication(prev => ({ ...prev, isPast: true }))}
+                >
+                  Past
+                </button>
+              </div>
               <div className={styles.modalActions}>
                 <Button variant="secondary" onClick={() => setShowAddMedication(false)}>
                   Cancel

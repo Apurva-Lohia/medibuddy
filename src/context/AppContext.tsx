@@ -19,7 +19,9 @@ type AppAction =
   | { type: 'ADD_MESSAGE'; payload: ChatMessage }
   | { type: 'CLEAR_MESSAGES' }
   | { type: 'ADD_MEDICATION'; payload: Medication }
+  | { type: 'ADD_PAST_MEDICATION'; payload: Medication }
   | { type: 'REMOVE_MEDICATION'; payload: string }
+  | { type: 'REMOVE_PAST_MEDICATION'; payload: string }
   | { type: 'UPDATE_MEDICATION'; payload: Medication }
   | { type: 'ADD_CALENDAR_EVENT'; payload: CalendarEvent }
   | { type: 'UPDATE_CALENDAR_EVENT'; payload: CalendarEvent }
@@ -60,6 +62,15 @@ function appReducer(state: AppState, action: AppAction): AppState {
           currentMedications: [...state.user.currentMedications, action.payload],
         },
       };
+    case 'ADD_PAST_MEDICATION':
+      if (!state.user) return state;
+      return {
+        ...state,
+        user: {
+          ...state.user,
+          pastMedications: [...state.user.pastMedications, action.payload],
+        },
+      };
     case 'REMOVE_MEDICATION':
       if (!state.user) return state;
       return {
@@ -67,6 +78,15 @@ function appReducer(state: AppState, action: AppAction): AppState {
         user: {
           ...state.user,
           currentMedications: state.user.currentMedications.filter(m => m.id !== action.payload),
+        },
+      };
+    case 'REMOVE_PAST_MEDICATION':
+      if (!state.user) return state;
+      return {
+        ...state,
+        user: {
+          ...state.user,
+          pastMedications: state.user.pastMedications.filter(m => m.id !== action.payload),
         },
       };
     case 'UPDATE_MEDICATION':
@@ -121,7 +141,9 @@ interface AppContextType {
   logout: () => void;
   addMessage: (message: Omit<ChatMessage, 'id' | 'timestamp'>) => void;
   addMedication: (medication: Medication) => void;
+  addPastMedication: (medication: Medication) => void;
   removeMedication: (id: string) => void;
+  removePastMedication: (id: string) => void;
   updateMedication: (medication: Medication) => void;
   updateUser: (data: Partial<User>) => void;
   updateCalendarEvent: (event: CalendarEvent) => void;
@@ -251,8 +273,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'ADD_MEDICATION', payload: medication });
   };
 
+  const addPastMedication = (medication: Medication) => {
+    dispatch({ type: 'ADD_PAST_MEDICATION', payload: medication });
+  };
+
   const removeMedication = (id: string) => {
     dispatch({ type: 'REMOVE_MEDICATION', payload: id });
+  };
+
+  const removePastMedication = (id: string) => {
+    dispatch({ type: 'REMOVE_PAST_MEDICATION', payload: id });
   };
 
   const updateMedication = (medication: Medication) => {
@@ -315,7 +345,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         logout,
         addMessage,
         addMedication,
+        addPastMedication,
         removeMedication,
+        removePastMedication,
         updateMedication,
         updateUser,
         updateCalendarEvent,
