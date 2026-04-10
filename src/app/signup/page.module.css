@@ -471,6 +471,89 @@
   color: var(--color-success);
 }
 
+.pendingMedsSection {
+  margin-top: var(--space-6);
+  padding: var(--space-5);
+  background-color: oklch(65% 0.15 145 / 0.08);
+  border-radius: var(--radius-lg);
+  border: 1px solid oklch(65% 0.12 185 / 0.2);
+}
+
+.sectionSubtitle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-2);
+}
+
+.autoFilledBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-1) var(--space-3);
+  background-color: oklch(65% 0.12 185 / 0.15);
+  color: var(--color-primary);
+  border-radius: var(--radius-full);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.editHint {
+  font-size: var(--text-sm);
+  color: var(--gray-500);
+  margin-bottom: var(--space-4);
+}
+
+.pendingMedCard {
+  display: grid;
+  grid-template-columns: 1fr 150px auto;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4) !important;
+  margin-bottom: var(--space-2);
+  background-color: var(--surface-secondary);
+}
+
+.pendingMedInfo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.pendingMedInfo strong {
+  color: var(--gray-900);
+  font-weight: 600;
+}
+
+.pendingDosageInput {
+  max-width: 150px;
+}
+
+.pendingMedActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.addAllButton {
+  margin-top: var(--space-3);
+  width: 100%;
+}
+
+.manualAddSection {
+  margin-top: var(--space-8);
+  padding-top: var(--space-6);
+  border-top: 1px solid var(--gray-200);
+}
+
+.manualAddTitle {
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--gray-800);
+  margin-bottom: var(--space-4);
+}
+
 .actions {
   display: flex;
   gap: var(--space-3);
@@ -499,5 +582,18 @@
 
   .formGrid {
     grid-template-columns: 1fr;
+  }
+
+  .pendingMedCard {
+    grid-template-columns: 1fr;
+    gap: var(--space-2);
+  }
+
+  .pendingDosageInput {
+    max-width: 100%;
+  }
+
+  .pendingMedActions {
+    justify-content: flex-end;
   }
 }
