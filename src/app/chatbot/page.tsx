@@ -4,13 +4,13 @@ import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { format } from 'date-fns';
 import { v4 as uuidv4 } from 'uuid';
-import { Send, Image, Plus, Check, AlertTriangle, XCircle, Pill, Mic, MicOff, Camera, X } from 'lucide-react';
+import { Send, Plus, Check, AlertTriangle, XCircle, Pill, Mic, MicOff, Camera, X } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import Card from '@/components/ui/Card/Card';
 import Button from '@/components/ui/Button/Button';
 import Alert from '@/components/ui/Alert/Alert';
-import { checkDrugInteractions, searchDrugs, createMedicationFromDrug } from '@/lib/drugDatabase';
-import { ChatMessage, Medication } from '@/types';
+import { checkDrugInteractions, searchDrugs, findDrug } from '@/lib/drugDatabase';
+import { Medication } from '@/types';
 import styles from './page.module.css';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -36,7 +36,7 @@ export default function Chatbot() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recognitionRef = useRef<any>(null);
-  const [drugSuggestions, setDrugSuggestions] = useState<{ name: string; category: string }[]>([]);
+  const [drugSuggestions, setDrugSuggestions] = useState<{ name: string; category: string; aliases: string }[]>([]);
 
   useEffect(() => {
     if (!state.isLoading && !state.isAuthenticated) {
@@ -92,7 +92,11 @@ export default function Chatbot() {
     setInputValue(value);
     if (value.length > 2) {
       const suggestions = searchDrugs(value);
-      setDrugSuggestions(suggestions.slice(0, 5).map(d => ({ name: d.name, category: d.category })));
+      setDrugSuggestions(suggestions.slice(0, 5).map(d => ({ 
+        name: d.name, 
+        category: d.category,
+        aliases: d.aliases.length > 0 ? `aka ${d.aliases[0]}` : ''
+      })));
     } else {
       setDrugSuggestions([]);
     }
@@ -173,68 +177,109 @@ export default function Chatbot() {
       return;
     }
 
-    addMessage({
-      role: 'user',
-      content: `Check interactions for: ${drugs.join(', ')}`,
+    const resolvedDrugs = drugs.map(d => {
+      const found = findDrug(d);
+      return found ? found.name : d;
     });
 
+    const unknownDrugs = drugs.filter(d => !findDrug(d));
+    const knownDrugs = drugs.filter(d => findDrug(d));
+
     addMessage({
-      role: 'bot',
-      content: `Analyzing interactions between ${drugs.join(', ')}...`,
+      role: 'user',
+      content: `Check interactions for: ${resolvedDrugs.join(', ')}`,
     });
+
+    if (unknownDrugs.length > 0) {
+      addMessage({
+        role: 'bot',
+        content: `Looking up ${unknownDrugs.join(', ')} in the database...`,
+      });
+    } else {
+      addMessage({
+        role: 'bot',
+        content: `Analyzing interactions between ${resolvedDrugs.join(', ')}...`,
+      });
+    }
 
     await new Promise(resolve => setTimeout(resolve, 1500));
 
-    const result = checkDrugInteractions(drugs, state.user?.allergies || []);
-
-    const existingMeds = state.user?.currentMedications.map(m => m.name) || [];
-    const allDrugs = [...existingMeds, ...drugs];
-    const updatedResult = checkDrugInteractions(allDrugs, state.user?.allergies || []);
+    const existingMeds = state.user?.currentMedications.map(m => {
+      const found = findDrug(m.name);
+      return found ? found.name : m.name;
+    }) || [];
+    const allDrugs = [...existingMeds, ...resolvedDrugs];
+    const result = checkDrugInteractions(allDrugs, state.user?.allergies || []);
 
     let responseText = '';
 
-    if (updatedResult.allergyAlerts.length > 0) {
+    if (unknownDrugs.length > 0) {
+      responseText += `ℹ️ **Drugs not in database:** ${unknownDrugs.join(', ')}\n`;
+      responseText += `These medications couldn't be verified. Please consult your pharmacist for interaction warnings.\n\n`;
+    }
+
+    if (result.allergyAlerts.length > 0) {
       responseText += '⚠️ **Allergy Alert!**\n\n';
-      updatedResult.allergyAlerts.forEach(alert => {
+      result.allergyAlerts.forEach(alert => {
         responseText += `${alert}\n\n`;
       });
     }
 
-    if (updatedResult.interactions.length > 0) {
-      updatedResult.interactions.forEach(interaction => {
-        if (interaction.severity === 'danger') {
-          responseText += `🚫 **DANGER: Do Not Combine!**\n`;
-          responseText += `${interaction.drug1} + ${interaction.drug2}\n`;
-          responseText += `${interaction.description}\n`;
-          responseText += `**Recommendation:** ${interaction.recommendation}\n\n`;
-        } else if (interaction.severity === 'caution') {
-          responseText += `⚠️ **Caution Required**\n`;
-          responseText += `${interaction.drug1} + ${interaction.drug2}\n`;
-          responseText += `${interaction.description}\n`;
-          responseText += `**Recommendation:** ${interaction.recommendation}\n\n`;
-        }
+    const dangerInteractions = result.interactions.filter(i => i.severity === 'danger');
+    const cautionInteractions = result.interactions.filter(i => i.severity === 'caution');
+
+    if (dangerInteractions.length > 0) {
+      responseText += `🚫 **DANGER: Do Not Combine!**\n\n`;
+      dangerInteractions.forEach(interaction => {
+        responseText += `**${interaction.drug1} + ${interaction.drug2}**\n`;
+        responseText += `${interaction.description}\n`;
+        responseText += `→ ${interaction.recommendation}\n\n`;
       });
     }
 
-    if (result.safe && updatedResult.interactions.length === 0 && updatedResult.allergyAlerts.length === 0) {
-      responseText = `✅ **All Clear!**\n\n`;
-      responseText += `I've checked ${drugs.join(', ')} against your current medications and allergies. `;
-      responseText += `No significant interactions or allergy concerns were found.\n\n`;
-      responseText += `Would you like me to add these medications to your profile and calendar?`;
-      
-      setShowAddConfirmation({
-        name: drugs[0],
-        dosage: 'As prescribed',
+    if (cautionInteractions.length > 0) {
+      responseText += `⚠️ **Caution Required**\n\n`;
+      cautionInteractions.forEach(interaction => {
+        responseText += `**${interaction.drug1} + ${interaction.drug2}**\n`;
+        responseText += `${interaction.description}\n`;
+        responseText += `→ ${interaction.recommendation}\n\n`;
       });
+    }
+
+    const newInteractions = result.interactions.filter(i => {
+      const drug1Known = findDrug(i.drug1);
+      const drug2Known = findDrug(i.drug2);
+      const drug1InUserMeds = existingMeds.some(d => findDrug(d)?.name === i.drug1);
+      const drug2InUserMeds = existingMeds.some(d => findDrug(d)?.name === i.drug2);
+      return (drug1Known && knownDrugs.includes(drug1Known.name)) || 
+             (drug2Known && knownDrugs.includes(drug2Known.name));
+    });
+
+    if (result.safe || (dangerInteractions.length === 0 && cautionInteractions.length === 0 && result.allergyAlerts.length === 0)) {
+      responseText = `✅ **All Clear!**\n\n`;
+      if (knownDrugs.length > 0) {
+        responseText += `I've checked ${knownDrugs.map(d => findDrug(d)?.name || d).join(', ')} against your current medications and allergies. `;
+      } else {
+        responseText += `No known interactions found in the database. `;
+      }
+      responseText += `No significant interactions or allergy concerns were found.\n\n`;
+      
+      if (knownDrugs.length > 0) {
+        responseText += `Would you like me to add these medications to your profile and calendar?`;
+        setShowAddConfirmation({
+          name: findDrug(knownDrugs[0])?.name || knownDrugs[0],
+          dosage: 'As prescribed',
+        });
+      }
     }
 
     addMessage({
       role: 'bot',
       content: responseText,
-      drugs,
+      drugs: resolvedDrugs,
       interactionResult: {
-        safe: result.safe,
-        interactions: result.interactions,
+        safe: dangerInteractions.length === 0 && cautionInteractions.length === 0 && result.allergyAlerts.length === 0,
+        interactions: newInteractions.length > 0 ? newInteractions : result.interactions,
       },
     });
   };
@@ -437,7 +482,7 @@ export default function Chatbot() {
                       setDrugSuggestions([]);
                     }}>
                       <strong>{drug.name}</strong>
-                      <span>{drug.category}</span>
+                      <span>{drug.category} {drug.aliases}</span>
                     </li>
                   ))}
                 </ul>
